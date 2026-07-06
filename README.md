@@ -1,11 +1,11 @@
 # Nirmiti Developers — Construction Management System v3
 
-Standalone **Figma CRM frontend** for Nirmiti Group. This is the `version3` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
+Modular **Figma CRM frontend** for Nirmiti Group. This is the `version3` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
 
 | Branch | What it contains |
 |--------|------------------|
-| **`version3`** (this branch) | Modular refactor — page-per-module structure, mirrored API layer, `useAppData` |
-| **`version2`** | Advanced Figma UI — monolithic App.tsx |
+| **`version3`** (this branch) | Modular refactor — page-per-module, mirrored API layer, `useAppData` |
+| **`version2`** | Advanced Figma UI — monolithic `App.tsx` (~2,900 lines) |
 | **`main`** | v1 full-stack — React UI + Express API + Electron desktop |
 
 **Design source:** [Figma — CRM Software](https://www.figma.com/design/iBcwibDvPJSyDNs9aunsqK/crm-software)
@@ -16,64 +16,49 @@ Standalone **Figma CRM frontend** for Nirmiti Group. This is the `version3` bran
 
 | Change | Description |
 |--------|-------------|
-| Modular pages | `src/components/pages/` — one file per sidebar module |
-| Mirrored API | `src/lib/api/<module>/` matches page folder structure |
-| Slim App.tsx | ~376 lines (routing shell only) |
+| Modular pages | One file per sidebar module in `src/components/pages/` |
+| Mirrored API | `src/lib/api/<module>/` matches page folder structure 1:1 |
+| Slim `App.tsx` | ~376 lines — routing shell, login, setup only |
 | Shared UI | `Button`, `Badge`, `Modal`, `ExportExcelButton`, `Sidebar` |
-| State hook | `useAppData` with optional `VITE_USE_API=true` |
-
-### Folder structure
-
-```
-src/components/pages/     src/lib/api/
-├── dashboard/            ├── dashboard/
-├── customers/            ├── customers/
-├── sales/                ├── sales/
-├── inventory/            ├── inventory/
-├── shareholder/          ├── shareholder/
-├── projects/             ├── projects/
-└── settings/             └── settings/
-```
+| Central state | `useAppData` hook with optional `VITE_USE_API=true` |
+| Excel export | `ExportExcelButton` + `lib/export/excel.ts` (client-side CSV) |
 
 ---
 
-## What's New in v2
+## Features (Module Status)
 
-| Module | Status | Description |
-|--------|--------|-------------|
-| Login & Project Setup | Ready | Multi-level wizard: buildings, wings, BHK, commercial zones |
-| Dashboard | Ready | Live project hero, KPI cards, all-projects list |
-| Customer Sales | Ready | Customer database, overdue list, status table |
-| Add Customer | Ready | Registration form with flat grid |
-| Sales Dashboard | Ready | Property metrics, payment tracking, donut chart |
-| Payment Slabs | Ready | Construction-stage slabs, WhatsApp message templates |
-| Received Payments | Ready | Payment log and recording form |
-| Inventory | Planned | Placeholder |
-| Shareholder | Planned | Placeholder |
-| Settings | Planned | Placeholder |
+| Module | Route | Status |
+|--------|-------|--------|
+| Login & Project Setup | setup flow | Ready |
+| Dashboard | `dashboard` | Ready |
+| Customer Sales | `customers` | Ready |
+| Add Customer | `add-customer` | Ready (sub-route under Customers) |
+| Sales Dashboard | `sales` | Ready |
+| Payment Slabs | `payment-slabs` | Ready (sub-route under Sales) |
+| Received Payments | `received-payment` | Ready (sub-route under Sales) |
+| Projects | `projects` | Ready |
+| Inventory | `inventory` | Placeholder |
+| Shareholder | `shareholder` | Placeholder |
+| Settings | `settings` | Placeholder |
 
-v2 starts with **empty data** (no pre-filled mock customers). All runtime data lives in **frontend React state**.
+v3 starts with **empty data**. All runtime data lives in React state via `useAppData` until `VITE_USE_API=true`.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────┐
-│  CRM Frontend (version2)    │  React + Vite + Tailwind
-│  http://localhost:5173      │  Frontend state only
-└──────────────┬──────────────┘
-               │  future: VITE_API_URL
-               ▼
-┌─────────────────────────────┐
-│  Express API (main branch)  │  Node.js + Express
-│  http://localhost:3001      │  Run separately
-└─────────────────────────────┘
-
-┌─────────────────────────────┐
-│  Electron Desktop (main)    │  Wraps v1 UI today
-│  npm run electron:dev       │  Can adopt v2 build later
-└─────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  CRM Frontend (version3)          React + Vite + Tailwind│
+│  http://localhost:5173                                   │
+│                                                          │
+│  App.tsx (shell) → pages/ → lib/api/ → Express backend  │
+└──────────────────────────┬──────────────────────────────┘
+                           │  VITE_API_URL (when VITE_USE_API=true)
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Express API (main branch)        http://localhost:3001 │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -84,20 +69,25 @@ v2 starts with **empty data** (no pre-filled mock customers). All runtime data l
 - **npm** or **pnpm**
 - **Git**
 
+> `node_modules/` and `dist/` are **not** committed. Run `npm install` after cloning.
+
 ---
 
-## Quick Start — CRM Web App (version3)
+## Quick Start
 
 ```bash
 git clone https://github.com/RajT7755/construction_cms.git
 cd construction_cms
 git checkout version3
 
+cp .env.example .env
 npm install
 npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
+
+**Default login:** any username + password (demo auth).
 
 ### Production build
 
@@ -107,38 +97,6 @@ npm run preview
 ```
 
 Deploy the `dist/` folder to Vercel, Netlify, or any static host.
-
----
-
-## Quick Start — Backend (main branch, optional)
-
-The v2 UI works without the backend. To run the API separately:
-
-```bash
-# In a second terminal / second clone
-git clone https://github.com/RajT7755/construction_cms.git
-cd construction_cms
-git checkout main
-npm install
-npm run server:dev
-```
-
-API: [http://localhost:3001/api/health](http://localhost:3001/api/health)
-
----
-
-## Quick Start — Desktop App (main branch)
-
-Electron lives on `main`, not `version2`:
-
-```bash
-git checkout main
-npm install
-npm run dev          # Terminal 1
-npm run electron:dev # Terminal 2
-```
-
-To use the v2 UI in Electron later, build v2 (`npm run build` on `version2`) and point Electron's production loader at the `dist/` folder.
 
 ---
 
@@ -152,26 +110,137 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_URL` | `http://localhost:3001` | Express API base URL (for future integration) |
+| `VITE_API_URL` | `http://localhost:3001` | Express API base URL |
+| `VITE_USE_API` | `false` | `true` = fetch from backend; `false` = local React state |
 
 ---
 
-## Frontend State Model (v2)
+## Project Structure
 
-All data is stored in React state — nothing is persisted to a database yet.
-
-| State | Location | Description |
-|-------|----------|-------------|
-| `projects[]` | App root `useState` | Created via Project Setup wizard |
-| `customersList[]` | `App.tsx` module scope | Empty; ready for Add Customer |
-| `defaultSlabs[]` | `App.tsx` module scope | Empty; managed in Payment Slabs page |
-| `mockReceivedLog[]` | `App.tsx` module scope | Empty; managed in Received Payment page |
-
-Centralized hook (ready for API migration): [`src/hooks/useAppData.ts`](src/hooks/useAppData.ts)
+```
+src/
+├── app/
+│   └── App.tsx                    # Routing shell (~376 lines)
+├── components/
+│   ├── navigation/
+│   │   └── Sidebar.tsx            # 7-item main nav
+│   ├── ui/
+│   │   ├── Button.tsx
+│   │   ├── Badge.tsx
+│   │   ├── Modal.tsx
+│   │   └── ExportExcelButton.tsx
+│   └── pages/
+│       ├── dashboard/
+│       │   └── Dashboard.tsx
+│       ├── customers/
+│       │   ├── CustomerSales.tsx
+│       │   └── AddCustomer.tsx
+│       ├── sales/
+│       │   ├── Sales.tsx
+│       │   ├── PaymentSlabs.tsx
+│       │   └── ReceivedPayments.tsx
+│       ├── inventory/
+│       │   └── Inventory.tsx
+│       ├── shareholder/
+│       │   └── Shareholder.tsx
+│       ├── projects/
+│       │   └── Projects.tsx
+│       └── settings/
+│           └── Settings.tsx
+├── hooks/
+│   └── useAppData.ts              # Central state + API flag
+├── lib/
+│   ├── api/                       # Mirrors pages/ layout
+│   │   ├── client.ts
+│   │   ├── index.ts
+│   │   ├── dashboard/dashboard.ts
+│   │   ├── customers/
+│   │   │   ├── customerSales.ts
+│   │   │   ├── addCustomer.ts
+│   │   │   └── export.ts
+│   │   ├── sales/
+│   │   │   ├── sales.ts
+│   │   │   ├── paymentSlabs.ts
+│   │   │   ├── receivedPayments.ts
+│   │   │   └── export.ts
+│   │   ├── inventory/inventory.ts
+│   │   ├── shareholder/shareholder.ts
+│   │   ├── projects/projects.ts
+│   │   └── settings/settings.ts
+│   ├── export/excel.ts
+│   ├── types.ts
+│   ├── utils.ts
+│   ├── constants.ts
+│   ├── projectUtils.ts
+│   ├── mockData.ts
+│   └── api.ts                     # Re-exports from api/index.ts
+└── styles/
+```
 
 ---
 
-## Backend Connection Guide
+## Page ↔ API Mirror
+
+Every page file has a matching API file at the same folder path:
+
+| Page file | API file | Import |
+|-----------|----------|--------|
+| `pages/dashboard/Dashboard.tsx` | `api/dashboard/dashboard.ts` | `dashboardApi` |
+| `pages/customers/CustomerSales.tsx` | `api/customers/customerSales.ts` | `customerSalesApi` |
+| `pages/customers/AddCustomer.tsx` | `api/customers/addCustomer.ts` | `addCustomerApi` |
+| Export button (customers) | `api/customers/export.ts` | `customersExportApi` |
+| `pages/sales/Sales.tsx` | `api/sales/sales.ts` | `salesApi` |
+| `pages/sales/PaymentSlabs.tsx` | `api/sales/paymentSlabs.ts` | `paymentSlabsApi` |
+| `pages/sales/ReceivedPayments.tsx` | `api/sales/receivedPayments.ts` | `receivedPaymentsApi` |
+| Export button (sales) | `api/sales/export.ts` | `salesExportApi` |
+| `pages/inventory/Inventory.tsx` | `api/inventory/inventory.ts` | `inventoryApi` |
+| `pages/shareholder/Shareholder.tsx` | `api/shareholder/shareholder.ts` | `shareholderApi` |
+| `pages/projects/Projects.tsx` | `api/projects/projects.ts` | `projectsApi` |
+| `pages/settings/Settings.tsx` | `api/settings/settings.ts` | `settingsApi` |
+
+### API usage example
+
+```ts
+import { projectsApi } from "@/lib/api/projects/projects";
+
+const projects = await projectsApi.list();
+const created = await projectsApi.create(newProject);
+```
+
+---
+
+## Navigation
+
+**Sidebar (7 items):** Dashboard · Customers · Sales · Inventory · Shareholder · Projects · Settings
+
+**Sub-routes (no sidebar entry):**
+
+| Route | Reached from |
+|-------|--------------|
+| `add-customer` | Customers → Add Customer button |
+| `payment-slabs` | Sales → Payment Slabs card |
+| `received-payment` | Sales → Received Payments card |
+
+---
+
+## Frontend State (`useAppData`)
+
+| State | Hook field | Description |
+|-------|------------|-------------|
+| Projects | `projects` | Created via Project Setup wizard |
+| Customers | `customers` | Added via Add Customer form |
+| Payment slabs | `slabs` | Managed in Payment Slabs page |
+| Received payments | `receivedPayments` | Managed in Received Payments page |
+
+```ts
+const { projects, customers, slabs, receivedPayments, addProject, addCustomer } = useAppData();
+```
+
+When `VITE_USE_API=true`, the hook loads from the Express backend on mount.
+
+---
+
+## Backend Connection (optional)
 
 ### Step 1 — Run both services
 
@@ -179,103 +248,36 @@ Centralized hook (ready for API migration): [`src/hooks/useAppData.ts`](src/hook
 # Terminal 1: backend (main branch)
 git checkout main && npm run server:dev
 
-# Terminal 2: frontend (version2 branch)
-git checkout version2 && npm run dev
+# Terminal 2: frontend (version3 branch)
+git checkout version3 && npm run dev
 ```
 
-Set in `.env`:
+### Step 2 — Enable API mode
+
+In `.env`:
+
 ```env
 VITE_API_URL=http://localhost:3001
+VITE_USE_API=true
 ```
 
-Ensure backend `.env` has:
+On `main` branch backend `.env`:
+
 ```env
 CORS_ORIGIN=http://localhost:5173
 ```
 
-### Step 2 — Map existing API endpoints
+### Step 3 — API endpoints
 
-Types are defined in [`src/lib/types.ts`](src/lib/types.ts).  
-Fetch helpers are in [`src/lib/api.ts`](src/lib/api.ts).
-
-| Frontend type | API endpoint (main branch) | Method |
-|---------------|---------------------------|--------|
+| Type | Endpoint | Method |
+|------|----------|--------|
 | `Customer` | `/api/customers` | GET, POST |
-| `Booking` | `/api/bookings` | GET |
-| `Investment` | `/api/investments` | GET |
-| `PaymentRequest` | `/api/payments` | GET |
-| `FlatRecord` | `/api/flats` | GET |
-| `DashboardSummary` | `/api/dashboard` | GET |
-
-Example (not wired to UI yet):
-
-```ts
-import { api } from "@/lib/api";
-
-const customers = await api.customers.list();
-const health = await api.health();
-```
-
-### Step 3 — Add proposed v2 endpoints to `server/index.js` (main branch)
-
-| Frontend type | Proposed endpoint | Method |
-|---------------|-------------------|--------|
 | `ProjectData` | `/api/projects` | GET, POST |
 | `SlabEntry` | `/api/payment-slabs` | GET, POST |
 | `ReceivedPayment` | `/api/received-payments` | GET, POST |
+| `DashboardSummary` | `/api/dashboard` | GET |
 
-Stub implementations already exist in `src/lib/api.ts` — they will work once you add matching routes to `server/index.js` on `main`.
-
-### Step 4 — Wire UI to API
-
-Replace module-level arrays in `App.tsx` with the `useAppData` hook:
-
-```ts
-// Before (v2)
-const [projects, setProjects] = useState<ProjectData[]>([]);
-
-// After (connected)
-const { projects, addProject } = useAppData();
-// On mount:
-useEffect(() => {
-  api.projects.list().then(setProjects).catch(console.error);
-}, []);
-```
-
-Repeat for customers, slabs, and received payments.
-
-### Step 5 — Dashboard KPIs
-
-Derive dashboard numbers from live API data instead of hardcoded values:
-
-```ts
-const summary = await api.dashboard();
-// Or compute from projects + customers client-side
-```
-
----
-
-## Project Structure
-
-```
-construction-cms-v2/
-├── src/
-│   ├── app/
-│   │   └── App.tsx          # Main UI (~2,900 lines)
-│   ├── hooks/
-│   │   └── useAppData.ts    # Central state hook
-│   ├── lib/
-│   │   ├── api.ts           # API client stubs
-│   │   └── types.ts         # Shared TypeScript types
-│   ├── imports/
-│   │   └── nirmiti_logo.jpg
-│   └── styles/
-├── plans/                   # Implementation reference docs
-├── package.json
-├── vite.config.ts
-├── .env.example
-└── README.md
-```
+Proposed v3 routes may need to be added to `server/index.js` on the `main` branch.
 
 ---
 
@@ -283,7 +285,7 @@ construction-cms-v2/
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start Vite dev server |
+| `npm run dev` | Start Vite dev server (port 5173) |
 | `npm run build` | Production build → `dist/` |
 | `npm run preview` | Preview production build |
 
@@ -294,9 +296,21 @@ construction-cms-v2/
 | Branch | Purpose |
 |--------|---------|
 | `main` | v1 — full-stack with Express + Electron |
-| `version2` | v2 — standalone Figma CRM frontend |
+| `version2` | v2 — standalone Figma CRM (monolithic App.tsx) |
+| `version3` | v3 — modular pages + mirrored API (this branch) |
 
-These branches have **independent file trees**. `version2` is frontend-only; `main` has `server/` and `electron/`.
+`version3` is frontend-only. Backend (`server/`) and Electron (`electron/`) live on `main`.
+
+---
+
+## Adding a New Module
+
+1. Create `src/components/pages/<module>/<ModuleName>.tsx`
+2. Create `src/lib/api/<module>/<moduleName>.ts` with matching camelCase name
+3. Export from `src/lib/api/index.ts`
+4. Add route id to `Page` type in `src/lib/types.ts`
+5. Add nav item in `src/components/navigation/Sidebar.tsx` (if sidebar-visible)
+6. Wire route in `src/app/App.tsx`
 
 ---
 
