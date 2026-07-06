@@ -1,0 +1,101 @@
+/** Shared types — aligned with construction_cms main-branch server/index.js */
+
+export type PropType = "residential" | "commercial" | "semi";
+
+export interface Customer {
+  id: string;
+  name: string;
+  flat: string;
+  floor: number;
+  project: string;
+  status: string;
+  amount: number;
+}
+
+export interface Booking {
+  id: string;
+  customer: string;
+  flat: string;
+  floor: number;
+  amount: number;
+  date: string;
+  status: string;
+}
+
+export interface Investment {
+  id: string;
+  investor: string;
+  amount: number;
+  date: string;
+  type: string;
+  ret: string;
+}
+
+export interface PaymentRequest {
+  id: string;
+  customer: string;
+  flat: string;
+  amount: number;
+  due: string;
+  status: string;
+}
+
+export interface FlatUnit {
+  id: string;
+  number: string;
+  floor: number;
+  kind: "flat" | "shop";
+  bhkType?: string;
+  status: "available" | "booked" | "overdue";
+}
+
+export interface ProjectData {
+  id: string;
+  name: string;
+  propType: PropType;
+  totalFlats: number;
+  totalShops: number;
+  units: FlatUnit[];
+}
+
+export interface SlabEntry {
+  id: string;
+  slabNo: number;
+  stage: string;
+  percentage: number;
+  dateGenerated: string;
+  dueDate: string;
+  status: "draft" | "sent" | "received";
+}
+
+export interface ReceivedPayment {
+  id: string;
+  customer: string;
+  flat: string;
+  category: string;
+  amount: number;
+  received: number;
+  method: string;
+  date: string;
+  status: string;
+}
+
+export interface DashboardSummary {
+  totalBookedFlats: number;
+  totalFlats: number;
+  bookedPercentage: number;
+  remainingFlats: number;
+  remainingInvestment: number;
+  totalInvestment: number;
+  overduePayments: number;
+  totalSalesAmount: number;
+  materialCost: number;
+  costTrend: { m: string; v: number }[];
+}
+
+export interface FlatRecord {
+  number: number;
+  status: string;
+  customer: string | null;
+  type: string;
+}
