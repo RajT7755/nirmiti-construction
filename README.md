@@ -1,13 +1,39 @@
-# Nirmiti Developers — Construction Management System v2
+# Nirmiti Developers — Construction Management System v3
 
-Standalone **Figma CRM frontend** for Nirmiti Group. This is the `version2` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
+Standalone **Figma CRM frontend** for Nirmiti Group. This is the `version3` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
 
 | Branch | What it contains |
 |--------|------------------|
-| **`version2`** (this branch) | Advanced Figma UI — project setup, sales, payment slabs, dashboard |
+| **`version3`** (this branch) | Modular refactor — page-per-module structure, mirrored API layer, `useAppData` |
+| **`version2`** | Advanced Figma UI — monolithic App.tsx |
 | **`main`** | v1 full-stack — React UI + Express API + Electron desktop |
 
 **Design source:** [Figma — CRM Software](https://www.figma.com/design/iBcwibDvPJSyDNs9aunsqK/crm-software)
+
+---
+
+## What's New in v3
+
+| Change | Description |
+|--------|-------------|
+| Modular pages | `src/components/pages/` — one file per sidebar module |
+| Mirrored API | `src/lib/api/<module>/` matches page folder structure |
+| Slim App.tsx | ~376 lines (routing shell only) |
+| Shared UI | `Button`, `Badge`, `Modal`, `ExportExcelButton`, `Sidebar` |
+| State hook | `useAppData` with optional `VITE_USE_API=true` |
+
+### Folder structure
+
+```
+src/components/pages/     src/lib/api/
+├── dashboard/            ├── dashboard/
+├── customers/            ├── customers/
+├── sales/                ├── sales/
+├── inventory/            ├── inventory/
+├── shareholder/          ├── shareholder/
+├── projects/             ├── projects/
+└── settings/             └── settings/
+```
 
 ---
 
@@ -60,12 +86,12 @@ v2 starts with **empty data** (no pre-filled mock customers). All runtime data l
 
 ---
 
-## Quick Start — CRM Web App (version2)
+## Quick Start — CRM Web App (version3)
 
 ```bash
 git clone https://github.com/RajT7755/construction_cms.git
 cd construction_cms
-git checkout version2
+git checkout version3
 
 npm install
 npm run dev

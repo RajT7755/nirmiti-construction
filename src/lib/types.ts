@@ -1,6 +1,38 @@
 /** Shared types — aligned with construction_cms main-branch server/index.js */
 
+export type Page =
+  | "dashboard"
+  | "customers"
+  | "add-customer"
+  | "sales"
+  | "received-payment"
+  | "payment-slabs"
+  | "inventory"
+  | "shareholder"
+  | "projects"
+  | "settings";
+
 export type PropType = "residential" | "commercial" | "semi";
+
+export interface BhkEntry {
+  count: number;
+  area: string;
+}
+
+export interface WingConfig {
+  id: string;
+  floors: number;
+  bhk: Record<string, BhkEntry>;
+  shopsPerFloor: number;
+  shopArea: string;
+}
+
+export interface BuildingConfig {
+  id: string;
+  name: string;
+  numWings: number;
+  wings: WingConfig[];
+}
 
 export interface Customer {
   id: string;
