@@ -1,17 +1,59 @@
 import { createBrowserRouter } from "react-router";
-import { RootLayout, Dashboard, CustomerSales, AddCustomer, Placeholder } from "./App";
+import { AppDataProvider } from "./AppDataContext";
+import { LoginGuard, RedirectRoot, RequireProject, RequireSession } from "./guards";
+import {
+  AddCustomerRoute,
+  AppLayoutRoute,
+  CustomersRoute,
+  DashboardRoute,
+  InventoryRoute,
+  LoginRoute,
+  PaymentSlabsRoute,
+  ProjectsRoute,
+  ReceivedPaymentsRoute,
+  SalesRoute,
+  SettingsRoute,
+  SetupRoute,
+  ShareholderRoute,
+} from "./routePages";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: RootLayout,
+    element: <AppDataProvider />,
     children: [
-      { index: true, Component: Dashboard },
-      { path: "sales", Component: CustomerSales },
-      { path: "add-customer", Component: AddCustomer },
-      { path: "inventory", element: <Placeholder title="Inventory Management" /> },
-      { path: "shareholder", element: <Placeholder title="Shareholder Overview" /> },
-      { path: "settings", element: <Placeholder title="Settings" /> },
+      { index: true, Component: RedirectRoot },
+      {
+        path: "login",
+        element: <LoginGuard />,
+        children: [{ index: true, Component: LoginRoute }],
+      },
+      {
+        element: <RequireSession />,
+        children: [
+          { path: "setup", Component: SetupRoute },
+          {
+            element: <RequireProject />,
+            children: [
+              {
+                element: <AppLayoutRoute />,
+                children: [
+                  { path: "dashboard", Component: DashboardRoute },
+                  { path: "customers", Component: CustomersRoute },
+                  { path: "add-customer", Component: AddCustomerRoute },
+                  { path: "sales", Component: SalesRoute },
+                  { path: "received-payment", Component: ReceivedPaymentsRoute },
+                  { path: "payment-slabs", Component: PaymentSlabsRoute },
+                  { path: "projects", Component: ProjectsRoute },
+                  { path: "inventory", Component: InventoryRoute },
+                  { path: "shareholder", Component: ShareholderRoute },
+                  { path: "settings", Component: SettingsRoute },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   },
 ]);

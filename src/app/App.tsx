@@ -1,22 +1,12 @@
 import { useState } from "react";
+import { Outlet, useLocation } from "react-router";
 import {
   ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight, CheckCircle2,
 } from "lucide-react";
 import nirmitiLogo from "@/imports/nirmiti_logo.jpg";
 import { Sidebar } from "@/components/navigation/Sidebar";
-import { Dashboard } from "@/components/pages/dashboard/Dashboard";
-import { CustomerSales } from "@/components/pages/customers/CustomerSales";
-import { AddCustomer } from "@/components/pages/customers/AddCustomer";
-import { Projects, ProjectSetup } from "@/components/pages/projects/Projects";
-import { Sales } from "@/components/pages/sales/Sales";
-import { ReceivedPayments } from "@/components/pages/sales/ReceivedPayments";
-import { PaymentSlabs } from "@/components/pages/sales/PaymentSlabs";
-import { Inventory } from "@/components/pages/inventory/Inventory";
-import { Shareholder } from "@/components/pages/shareholder/Shareholder";
-import { Settings } from "@/components/pages/settings/Settings";
-import { useAppData } from "@/hooks/useAppData";
-import type { CustomerDetailProfile } from "@/lib/customers/customerDetailTypes";
-import type { Page, ProjectData, PropType } from "@/lib/types";
+import { ProjectSetup } from "@/components/pages/projects/Projects";
+import type { ProjectData, PropType } from "@/lib/types";
 
 const PAGE_TITLE: Record<string, string> = {
   dashboard: "Dashboard",
@@ -301,120 +291,38 @@ export function SetupShell({ onCreate }: { onCreate: (p: ProjectData) => void })
   );
 }
 
-export default function App() {
-  const [appState, setAppState] = useState<"login" | "setup" | "app">("login");
-  const [page, setPage] = useState<Page>("dashboard");
-  const [selectedSite, setSelectedSite] = useState<string>("All Sites");
-  const [proceedCustomer, setProceedCustomer] = useState<CustomerDetailProfile | null>(null);
+const PATH_TO_PAGE_KEY: Record<string, string> = {
+  "/dashboard": "dashboard",
+  "/customers": "customers",
+  "/add-customer": "add-customer",
+  "/sales": "sales",
+  "/received-payment": "received-payment",
+  "/payment-slabs": "payment-slabs",
+  "/inventory": "inventory",
+  "/shareholder": "shareholder",
+  "/projects": "projects",
+  "/settings": "settings",
+};
 
-  const {
-    projects,
-    customers,
-    customerProfiles,
-    slabs,
-    receivedPayments,
-    addProject,
-    registerCustomer,
-    allocatePayment,
-    deactivateCustomer,
-    getDetail,
-    getActiveSlab,
-    getCategoryDueFor,
-    bookedFlatsSummary,
-    checkFlatReleased,
-    setSlabs,
-    sendWhatsAppBulk,
-  } = useAppData();
-
-  function handleCreateProject(p: ProjectData) {
-    addProject(p);
-    setAppState("app");
-    setPage("dashboard");
-  }
-
-  if (appState === "login") return <LoginPage onLogin={() => setAppState("setup")} />;
-  if (appState === "setup") return <SetupShell onCreate={handleCreateProject} />;
-
-  const filteredProjects = selectedSite === "All Sites" ? projects : projects.filter(p => p.name === selectedSite);
+export function AppLayout({
+  projects,
+  selectedSite,
+  onSiteChange,
+}: {
+  projects: ProjectData[];
+  selectedSite: string;
+  onSiteChange: (s: string) => void;
+}) {
+  const { pathname } = useLocation();
+  const pageKey = PATH_TO_PAGE_KEY[pathname] ?? "dashboard";
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', sans-serif", background: "#f0f2f7" }}>
-      <Sidebar active={page} onNav={setPage} />
+      <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <TopBar page={page} projects={projects} selectedSite={selectedSite} onSiteChange={setSelectedSite} />
+        <TopBar page={pageKey} projects={projects} selectedSite={selectedSite} onSiteChange={onSiteChange} />
         <main className="flex-1 overflow-y-auto">
-          {page === "dashboard" && <Dashboard projects={filteredProjects} />}
-          {page === "customers" && (
-            <CustomerSales
-              projects={filteredProjects}
-              customers={customers}
-              customerProfiles={customerProfiles}
-              bookedFlatsSummary={bookedFlatsSummary}
-              checkFlatReleased={checkFlatReleased}
-              getDetail={getDetail}
-              onDeactivate={deactivateCustomer}
-              onAdd={() => {
-                setProceedCustomer(null);
-                setPage("add-customer");
-              }}
-              onProceed={(c) => {
-                setProceedCustomer(c);
-                setPage("add-customer");
-              }}
-            />
-          )}
-          {page === "add-customer" && (
-            <AddCustomer
-              projects={projects}
-              customerProfiles={customerProfiles}
-              initialData={proceedCustomer}
-              proceedMode={!!proceedCustomer}
-              checkFlatReleased={checkFlatReleased}
-              onBack={() => {
-                setProceedCustomer(null);
-                setPage("customers");
-              }}
-              onRegister={registerCustomer}
-            />
-          )}
-          {page === "sales" && (
-            <Sales
-              projects={filteredProjects}
-              customers={customers}
-              customerProfiles={customerProfiles}
-              slabs={slabs}
-              receivedPayments={receivedPayments}
-              getActiveSlab={getActiveSlab}
-              getCategoryDueFor={getCategoryDueFor}
-              onAllocatePayment={allocatePayment}
-              onNav={setPage}
-            />
-          )}
-          {page === "received-payment" && (
-            <ReceivedPayments
-              projects={projects}
-              customers={customers}
-              customerProfiles={customerProfiles}
-              receivedPayments={receivedPayments}
-              getActiveSlab={getActiveSlab}
-              getCategoryDueFor={getCategoryDueFor}
-              onAllocatePayment={allocatePayment}
-            />
-          )}
-          {page === "payment-slabs" && (
-            <PaymentSlabs
-              projects={projects}
-              customers={customers}
-              slabs={slabs}
-              setSlabs={setSlabs}
-              onWhatsAppSend={sendWhatsAppBulk}
-              onBack={() => setPage("sales")}
-            />
-          )}
-          {page === "inventory" && <Inventory />}
-          {page === "shareholder" && <Shareholder />}
-          {page === "projects" && <Projects onCreate={handleCreateProject} onBack={() => setPage("sales")} />}
-          {page === "settings" && <Settings />}
+          <Outlet />
         </main>
       </div>
     </div>

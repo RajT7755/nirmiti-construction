@@ -1,20 +1,24 @@
 import {
   LayoutDashboard, Users, Package, Briefcase, FolderOpen, Settings, TrendingUp,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
 import nirmitiLogo from "@/imports/nirmiti_logo.jpg";
 import type { Page } from "@/lib/types";
 
-const NAV_ITEMS = [
-  { id: "dashboard" as Page, label: "Dashboard", icon: LayoutDashboard },
-  { id: "customers" as Page, label: "Customers", icon: Users },
-  { id: "sales" as Page, label: "Sales", icon: TrendingUp },
-  { id: "inventory" as Page, label: "Inventory", icon: Package },
-  { id: "shareholder" as Page, label: "Shareholder", icon: Briefcase },
-  { id: "projects" as Page, label: "Projects", icon: FolderOpen },
-  { id: "settings" as Page, label: "Settings", icon: Settings },
+const NAV_ITEMS: { id: Page; label: string; path: string; icon: typeof LayoutDashboard }[] = [
+  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { id: "customers", label: "Customers", path: "/customers", icon: Users },
+  { id: "sales", label: "Sales", path: "/sales", icon: TrendingUp },
+  { id: "inventory", label: "Inventory", path: "/inventory", icon: Package },
+  { id: "shareholder", label: "Shareholder", path: "/shareholder", icon: Briefcase },
+  { id: "projects", label: "Projects", path: "/projects", icon: FolderOpen },
+  { id: "settings", label: "Settings", path: "/settings", icon: Settings },
 ];
 
-export function Sidebar({ active, onNav }: { active: Page; onNav: (p: Page) => void }) {
+export function Sidebar() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
   return (
     <aside className="w-56 shrink-0 flex flex-col h-full" style={{ background: "#0f1a35" }}>
       <div className="px-4 py-4 border-b border-white/10">
@@ -33,12 +37,12 @@ export function Sidebar({ active, onNav }: { active: Page; onNav: (p: Page) => v
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300/40 px-3 mb-3">Main Menu</p>
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-          const isActive = active === id;
+        {NAV_ITEMS.map(({ id, label, path, icon: Icon }) => {
+          const isActive = pathname === path;
           return (
             <button
-              key={label}
-              onClick={() => onNav(id)}
+              key={id}
+              onClick={() => navigate(path)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-blue-600 text-white"

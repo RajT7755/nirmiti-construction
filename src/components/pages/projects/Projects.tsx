@@ -5,6 +5,10 @@ import { makeWing, makeBuilding, generateUnitsFromBuildings } from "@/lib/projec
 import type { BuildingConfig, ProjectData, PropType, WingConfig } from "@/lib/types";
 import type { BhkEntry } from "@/lib/types";
 
+/** TEST ONLY — remove after manual refresh test passes */
+const TEST_PROJECT_NAME = "Neeel";
+const PROJECT_NAME_DRAFT_KEY = "nirmiti_project_name_draft";
+
 function Counter({ value, onChange, min = 0 }: { value: number; onChange: (n: number) => void; min?: number }) {
   return (
     <div className="flex items-center gap-1">
@@ -202,7 +206,13 @@ function BuildingPanel({ bldg, bi, propType, onChange }: {
 }
 
 export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) => void; onBack?: () => void }) {
-  const [projectName, setProjectName] = useState("");
+  const [projectName, setProjectName] = useState(() => {
+    try {
+      return sessionStorage.getItem(PROJECT_NAME_DRAFT_KEY) ?? TEST_PROJECT_NAME;
+    } catch {
+      return TEST_PROJECT_NAME;
+    }
+  });
   const [propType, setPropType]       = useState<PropType | null>(null);
   const [numBuildings, setNumBuildings] = useState(0);
   const [buildings, setBuildings]      = useState<BuildingConfig[]>([]);
@@ -218,6 +228,14 @@ export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) 
   useEffect(() => { if (lvl2 && !prev2.current) { setAnimLvl(2); setTimeout(() => setAnimLvl(null), 350); } prev2.current = lvl2; }, [lvl2]);
   useEffect(() => { if (lvl3 && !prev3.current) { setAnimLvl(3); setTimeout(() => setAnimLvl(null), 350); } prev3.current = lvl3; }, [lvl3]);
   useEffect(() => { if (lvl4 && !prev4.current) { setAnimLvl(4); setTimeout(() => setAnimLvl(null), 350); } prev4.current = lvl4; }, [lvl4]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(PROJECT_NAME_DRAFT_KEY, projectName);
+    } catch {
+      /* ignore */
+    }
+  }, [projectName]);
 
   function changeNumBuildings(n: number) {
     setNumBuildings(n);
@@ -242,6 +260,11 @@ export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) 
     const totalF = units.filter(u => u.kind === "flat").length;
     const totalS = units.filter(u => u.kind === "shop").length;
     onCreate({ id: `prj-${Date.now()}`, name: projectName.trim(), propType, totalFlats: totalF, totalShops: totalS, units });
+    try {
+      sessionStorage.removeItem(PROJECT_NAME_DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
   }
 
   const propOptions: { type: PropType; icon: string; label: string; tag: string }[] = [
