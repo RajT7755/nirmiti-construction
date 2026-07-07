@@ -4,8 +4,28 @@ import { Plus, X, MessageSquare, Edit3, Send, CheckCircle2 } from "lucide-react"
 import { WA_TEMPLATE_DEFAULT } from "@/lib/constants";
 import type { Customer, ProjectData, SlabEntry } from "@/lib/types";
 
-export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: { projects: ProjectData[]; customers: Customer[]; slabs: SlabEntry[]; setSlabs: Dispatch<SetStateAction<SlabEntry[]>>; onBack?: () => void }) {
-  // slabs from props
+const DESIGN_PREVIEW_SLABS: SlabEntry[] = [
+  { id: "S001", slabNo: 1, stage: "Plinth", percentage: 15, dateGenerated: "2026-06-01", dueDate: "2026-07-01", status: "received" },
+  { id: "S002", slabNo: 2, stage: "1st Slab", percentage: 15, dateGenerated: "2026-06-15", dueDate: "2026-08-01", status: "sent" },
+];
+
+export function PaymentSlabs({
+  projects,
+  customers,
+  slabs,
+  setSlabs,
+  onWhatsAppSend,
+  onBack,
+}: {
+  projects: ProjectData[];
+  customers: Customer[];
+  slabs: SlabEntry[];
+  setSlabs: Dispatch<SetStateAction<SlabEntry[]>>;
+  onWhatsAppSend?: (templateName: string, recipientCount: number) => void;
+  onBack?: () => void;
+}) {
+  const displaySlabs = slabs.length > 0 ? slabs : DESIGN_PREVIEW_SLABS;
+  const isPreview = slabs.length === 0;
   const [showNew, setShowNew]       = useState(false);
   const [newStage, setNewStage]     = useState("");
   const [newPct, setNewPct]         = useState("");
@@ -16,7 +36,7 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [selSlabForMsg, setSelSlabForMsg] = useState<SlabEntry | null>(null);
 
-  const nextSlabNo = slabs.length > 0 ? Math.max(...slabs.map(s => s.slabNo)) + 1 : 1;
+  const nextSlabNo = displaySlabs.length > 0 ? Math.max(...displaySlabs.map(s => s.slabNo)) + 1 : 1;
 
   const avgAmount = customers.reduce((s, c) => s + c.amount, 0) / (customers.length || 1);
 
@@ -39,8 +59,8 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
     setShowNew(false);
   }
 
-  function handleSend(slab: SlabEntry) {
-    setSelSlabForMsg(slab);
+  function handleSend(_slab: SlabEntry) {
+    onWhatsAppSend?.(template.slice(0, 40), customers.length);
     setSendSuccess(true);
     setTimeout(() => setSendSuccess(false), 2500);
   }
@@ -62,7 +82,10 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-[#0f1a35]">Payment Slabs</h2>
-          <p className="text-sm text-gray-400 mt-0.5">Define construction-stage slabs and push to customers</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Define construction-stage slabs and push to customers
+            {isPreview && <span className="text-orange-500"> · Design preview mode</span>}
+          </p>
         </div>
         <button onClick={() => setShowNew(s => !s)}
           className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
@@ -160,10 +183,7 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {slabs.length === 0 && (
-              <tr><td colSpan={8} className="text-center py-6 text-sm text-gray-400">No data yet.</td></tr>
-            )}
-            {slabs.map(s => (
+            {displaySlabs.map((s, idx) => (
               <tr key={s.id} className="hover:bg-gray-50/80 transition-colors">
                 <td className="px-5 py-3 text-sm font-mono font-bold text-[#0f1a35]">#{s.slabNo}</td>
                 <td className="px-5 py-3 text-sm text-gray-700">{s.stage}</td>
@@ -177,12 +197,21 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
                   <span className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize ${slabStatusBadge[s.status]}`}>
                     {s.status}
                   </span>
+                  {isPreview && idx === 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700">
+                      Auto-settled
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3">
-                  <button onClick={() => { setSelSlabForMsg(s); setEditMsg(false); }}
-                    className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg hover:bg-green-100 transition-colors">
-                    <MessageSquare size={11} /> Message
-                  </button>
+                  {isPreview && idx === 0 ? (
+                    <span className="text-[10px] text-gray-400 italic">No message</span>
+                  ) : (
+                    <button onClick={() => { setSelSlabForMsg(s); setEditMsg(false); }}
+                      className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg hover:bg-green-100 transition-colors">
+                      <MessageSquare size={11} /> Message
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -259,6 +288,7 @@ export function PaymentSlabs({ projects, customers, slabs, setSlabs, onBack }: {
                 className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
                 <Send size={14} /> Send to All Customers
               </button>
+              <p className="text-[10px] text-gray-400 w-full">Queued to outbox — connect VITE_USE_API for Cloud API</p>
               <button onClick={() => setEditMsg(v => !v)}
                 className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors">
                 <Edit3 size={14} /> {editMsg ? "Preview" : "Edit"}

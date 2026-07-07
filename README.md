@@ -1,12 +1,15 @@
-# Nirmiti Developers — Construction Management System v3
+# Nirmiti Developers — Construction Management System v4
 
-Modular **Figma CRM frontend** for Nirmiti Group. This is the `version3` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
+Modular **Figma CRM frontend** for Nirmiti Group. This is the `version4` branch of [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms).
 
 | Branch | What it contains |
 |--------|------------------|
-| **`version3`** (this branch) | Modular refactor — page-per-module, mirrored API layer, `useAppData` |
+| **`version4`** (this branch) | v3 frontend + wired API layer + **[Backend API Spec](docs/BACKEND_API_SPEC.md)** for Express |
+| **`version3`** | Modular refactor — page-per-module, mirrored API layer, `useAppData` |
 | **`version2`** | Advanced Figma UI — monolithic `App.tsx` (~2,900 lines) |
 | **`main`** | v1 full-stack — React UI + Express API + Electron desktop |
+
+> **Backend developers:** Read **[docs/BACKEND_API_SPEC.md](docs/BACKEND_API_SPEC.md)** for the full endpoint list, JSON request/response bodies, and implementation order.
 
 **Design source:** [Figma — CRM Software](https://www.figma.com/design/iBcwibDvPJSyDNs9aunsqK/crm-software)
 

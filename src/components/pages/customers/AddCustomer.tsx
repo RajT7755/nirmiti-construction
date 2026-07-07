@@ -1,10 +1,41 @@
-import { useState } from "react";
-import { RefreshCw, AlertCircle, X } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { flatData } from "@/lib/mockData";
-import type { Customer, ProjectData } from "@/lib/types";
+import { useState, useEffect } from "react";
+import { RefreshCw, AlertCircle, ArrowLeft } from "lucide-react";
+import { generateCustomerId } from "@/lib/customers/generateCustomerId";
+import type { AddCustomerFormInput } from "@/lib/customers/buildCustomerProfile";
+import type { CustomerDetailProfile } from "@/lib/customers/customerDetailTypes";
+import { BookedFlatsGrid } from "./BookedFlatsGrid";
+import type { ProjectData } from "@/lib/types";
 
-export function AddCustomer({ projects, customers, onBack, onSave }: { projects: ProjectData[]; customers: Customer[]; onBack?: () => void; onSave?: (c: Customer) => void }) {
+interface GeneratedSlab {
+  booking10: number;
+  received: number;
+  method: string;
+  date: string;
+}
+
+export function AddCustomer({
+  projects,
+  customerProfiles = [],
+  onBack,
+  onRegister,
+  initialData,
+  proceedMode,
+  checkFlatReleased,
+}: {
+  projects: ProjectData[];
+  customerProfiles?: CustomerDetailProfile[];
+  onBack?: () => void;
+  onRegister?: (
+    input: AddCustomerFormInput,
+    initialPayment?: { amount: number; method: string; date: string },
+    options?: { proceedExisting?: boolean }
+  ) => void;
+  initialData?: CustomerDetailProfile | null;
+  proceedMode?: boolean;
+  checkFlatReleased?: (flatNo: string) => boolean;
+}) {
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
   const projectNames = projects.length > 0
     ? projects.map(p => p.name)
     : ["Sunrise Heights", "Green Valley", "Blue Horizon"];
@@ -51,14 +82,46 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
   const [agreementPrice, setAgreementPrice] = useState("");
   const [electricalBill, setElectricalBill] = useState("");
   const [parkingAmount, setParkingAmount]   = useState("");
-  const [generatedSlab, setGeneratedSlab]   = useState<{ booking10: number; received: number } | null>(null);
+  const [generatedSlab, setGeneratedSlab]   = useState<GeneratedSlab | null>(null);
+  const [customerId, setCustomerId]         = useState("");
 
   // Notes
   const [notes, setNotes]         = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
 
-  // Modal
-  const [modalFlat, setModalFlat] = useState<{ number: string; type: string; status: string; floor: number; occupant?: string | null } | null>(null);
+  useEffect(() => {
+    if (!initialData) return;
+    setSelProject(initialData.project);
+    setCustName(initialData.name);
+    setAddress(initialData.address);
+    setPhone(initialData.phone);
+    setEmail(initialData.email);
+    setIdProof(initialData.idProof);
+    setIdNumber(initialData.idNumber);
+    setUnitType(initialData.unitType);
+    setFlatType(initialData.flatType);
+    setFlatNo(initialData.flat);
+    setArea(initialData.area);
+    setParking(initialData.parking);
+    setLoanStatus(initialData.loanStatus);
+    setBankName(initialData.bankName ?? "");
+    setBranchName(initialData.branchName ?? "");
+    setBankAddress(initialData.bankAddress ?? "");
+    setLoanAmount(initialData.loanAmount ? String(initialData.loanAmount) : "");
+    setBankEmail(initialData.bankEmail ?? "");
+    setBookingType("payment");
+    setSlabArea(initialData.area);
+    setSlabRate(String(Math.round(initialData.pricing.baseAmount / (Number(initialData.area) || 1))));
+    setGstPct(String(initialData.pricing.gstPct));
+    setStampDuty(String(initialData.pricing.stampDuty));
+    setAgreementPrice(String(initialData.pricing.agreementPrice));
+    setElectricalBill(String(initialData.pricing.electricalBill));
+    setParkingAmount(String(initialData.pricing.parkingAmount));
+    setNotes(initialData.notes);
+    setCustomerId(initialData.id);
+    setFloorName(String(initialData.floor));
+    setSelFloor(initialData.floor);
+  }, [initialData]);
 
   const activePrj = projects.find(p => p.name === selProject);
 
@@ -89,40 +152,98 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
     );
     return set.size > 0 ? Array.from(set) : ["A"];
   };
-  const getMaxFloor = (bldg: string, wing: string) => {
-    if (!activePrj) return 5;
-    const floors = activePrj.units.filter(u => u.number.startsWith(`${bldg}-W${wing}-`)).map(u => u.floor);
-    return floors.length > 0 ? Math.max(...floors) : 5;
-  };
-
   const buildings = getBuildings();
   const selBldg   = buildings[Math.min(selBuildingIdx, buildings.length - 1)];
   const wings     = getWings(selBldg);
   const selWing   = wings[Math.min(selWingIdx, wings.length - 1)];
-  const maxFloor  = getMaxFloor(selBldg, selWing);
+  const floorNum  = selFloor || (floorName ? parseInt(floorName, 10) || 0 : 0);
 
-  // Enrich units with customer occupant data
-  const gridUnits = activePrj
-    ? activePrj.units
-        .filter(u => u.number.startsWith(`${selBldg}-W${selWing}-`) && (selFloor === 0 || u.floor === selFloor))
-        .map(u => {
-          const shortNum = String(u.number).split("-").pop() ?? u.number;
-          const occupant = customers.find(c => c.flat.replace(/\s/g, "") === shortNum || u.number.includes(c.flat));
-          return { number: u.number, type: u.bhkType ?? "Shop", status: u.status, floor: u.floor, occupant: occupant?.name ?? null };
-        })
-    : flatData
-        .filter(f => selFloor === 0 || Math.floor(Number(f.number) / 100) === selFloor)
-        .map(f => ({ number: String(f.number), type: f.type, status: f.status, floor: Math.floor(Number(f.number) / 100), occupant: (f.customer as string | null) ?? null }));
-
-  function flatColorClass(s: string) {
-    if (s === "booked")  return "bg-green-100 text-green-700 border-green-300";
-    if (s === "overdue") return "bg-red-100 text-red-600 border-red-300";
-    return "bg-white text-gray-600 border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer";
-  }
+  useEffect(() => {
+    if (proceedMode && initialData) return;
+    const id = generateCustomerId(selProject, selBldg, floorNum, flatNo);
+    if (id) setCustomerId(id);
+  }, [selProject, selBldg, floorNum, flatNo, proceedMode, initialData]);
 
   function handleGenerateSlab() {
     if (!totalCalc) return;
-    setGeneratedSlab({ booking10: totalCalc * 0.1, received: totalCalc * 0.1 + gstCalc });
+    const booking10 = totalCalc * 0.1;
+    setGeneratedSlab({
+      booking10,
+      received: booking10 + gstCalc,
+      method: "cash",
+      date: "",
+    });
+  }
+
+  function handleRegenerateId() {
+    const id = generateCustomerId(selProject, selBldg, floorNum, flatNo);
+    if (id) setCustomerId(id);
+  }
+
+  function handleRegister() {
+    setRegisterError(null);
+    if (!custName.trim() || !phone || phone.length !== 10 || !flatNo || !bookingType) {
+      setRegisterError("Fill name, 10-digit phone, flat no., and booking type.");
+      return;
+    }
+    if (!customerId) {
+      setRegisterError("Customer ID could not be generated — check unit fields.");
+      return;
+    }
+
+    const input: AddCustomerFormInput = {
+      id: customerId,
+      name: custName.trim(),
+      phone,
+      email,
+      address,
+      idProof,
+      idNumber,
+      project: selProject,
+      unitType,
+      flatType,
+      building: selBldg,
+      wing: selWing,
+      flat: flatNo,
+      floor: floorNum,
+      area,
+      parking,
+      loanStatus,
+      bankName: bankName || undefined,
+      branchName: branchName || undefined,
+      bankAddress: bankAddress || undefined,
+      loanAmount: loanAmount ? Number(loanAmount) : undefined,
+      bankEmail: bankEmail || undefined,
+      bookingType,
+      holdingDueDate: holdingDueDate || undefined,
+      baseAmount: totalCalc,
+      gstPct: Number(gstPct) || 0,
+      gstAmount: gstCalc,
+      stampDuty: Number(stampDuty) || 0,
+      agreementPrice: Number(agreementPrice) || 0,
+      electricalBill: Number(electricalBill) || 0,
+      parkingAmount: parking !== "no" ? Number(parkingAmount) || 0 : 0,
+      grandTotal,
+      notes,
+      booking10Received:
+        bookingType === "payment" && generatedSlab ? generatedSlab.received : undefined,
+    };
+
+    const initialPayment =
+      bookingType === "payment" && generatedSlab && generatedSlab.received > 0
+        ? {
+            amount: generatedSlab.received,
+            method: generatedSlab.method,
+            date: generatedSlab.date || new Date().toISOString().slice(0, 10),
+          }
+        : undefined;
+
+    onRegister?.(input, initialPayment, { proceedExisting: proceedMode && !!initialData });
+    setRegisterSuccess(true);
+    setTimeout(() => {
+      setRegisterSuccess(false);
+      onBack?.();
+    }, 1200);
   }
 
   function handleSaveNotes() {
@@ -132,6 +253,23 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
 
   return (
     <div className="p-6">
+      {proceedMode && initialData && (
+        <div className="mb-5 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-orange-800">
+              Converting temporary booking — {initialData.name}
+            </p>
+            <p className="text-[11px] text-orange-600 mt-0.5">
+              All details pre-filled from temporary hold. Complete payment registration below.
+            </p>
+          </div>
+          {onBack && (
+            <button onClick={onBack} className="flex items-center gap-1 text-xs text-orange-700 hover:underline shrink-0">
+              <ArrowLeft size={12} /> Back
+            </button>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-5 gap-6">
 
         {/* ── LEFT FORM ── */}
@@ -141,12 +279,21 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-3">Customer Unique ID</p>
             <div className="flex gap-2">
-              <input readOnly defaultValue="CMS-2026-0149"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-700 focus:outline-none" />
-              <button className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+              <input
+                readOnly
+                value={customerId || "Fill project, building, floor & flat"}
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-700 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleRegenerateId}
+                disabled={!flatNo}
+                className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40"
+              >
                 <RefreshCw size={12} /> Generate
               </button>
             </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">Format: project + building + floor + flat (e.g. SHB2B204)</p>
           </div>
 
           {/* B. Unit Location */}
@@ -442,16 +589,56 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
               Only 10% Booking slab with Received Amount generated here. Remaining slabs are created in Sales.
             </p>
             {generatedSlab && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl space-y-2">
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl space-y-3">
                 <p className="text-[10px] text-green-700 font-semibold uppercase tracking-widest">Generated Booking Slab</p>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">10% Booking Amount</span>
                   <span className="font-bold text-[#0f1a35]">₹{generatedSlab.booking10.toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm border-t border-green-200 pt-2">
-                  <span className="font-semibold text-gray-800">Received Amount</span>
-                  <span className="text-base font-bold text-green-700">₹{generatedSlab.received.toLocaleString("en-IN")}</span>
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-600 block mb-1">Received Amount (₹)</label>
+                  <input
+                    type="number"
+                    value={generatedSlab.received}
+                    onChange={(e) =>
+                      setGeneratedSlab((s) =>
+                        s ? { ...s, received: Number(e.target.value) || 0 } : s
+                      )
+                    }
+                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm font-bold text-green-800 bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-600 block mb-1">Payment Method</label>
+                    <select
+                      value={generatedSlab.method}
+                      onChange={(e) =>
+                        setGeneratedSlab((s) => (s ? { ...s, method: e.target.value } : s))
+                      }
+                      className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="upi">UPI</option>
+                      <option value="bank">Bank Transfer</option>
+                      <option value="cheque">Cheque</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-600 block mb-1">Date Received</label>
+                    <input
+                      type="date"
+                      value={generatedSlab.date}
+                      onChange={(e) =>
+                        setGeneratedSlab((s) => (s ? { ...s, date: e.target.value } : s))
+                      }
+                      className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-green-600">
+                  Saved to Received Payments on register.
+                </p>
               </div>
             )}
           </div>
@@ -474,9 +661,21 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
             </p>
           </div>
 
+          {registerError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{registerError}</p>
+          )}
+          {registerSuccess && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 font-semibold">
+              Customer registered and saved.
+            </p>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 pb-6">
-            <button className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <button
+              onClick={handleRegister}
+              className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+            >
               Register Customer
             </button>
             <button className="px-6 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
@@ -487,197 +686,26 @@ export function AddCustomer({ projects, customers, onBack, onSave }: { projects:
 
         {/* ── RIGHT: Booked Flats Grid ── */}
         <div className="col-span-2">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden sticky top-6">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-[#0f1a35]">Booked Flats Grid</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">Navigate by Building → Wing → Floor</p>
-            </div>
-
-            {/* Building / Wing / Floor selectors — text field + +/− buttons */}
-            <div className="px-4 pt-3 pb-3 border-b border-gray-100 space-y-2.5 bg-gray-50/60">
-              {/* Building */}
-              <div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Building</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelBuildingIdx(i => Math.max(0, i - 1))}
-                    disabled={selBuildingIdx === 0}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">−</button>
-                  <input
-                    type="text"
-                    value={selBldg}
-                    onChange={e => {
-                      const idx = buildings.indexOf(e.target.value);
-                      if (idx >= 0) { setSelBuildingIdx(idx); setSelWingIdx(0); setSelFloor(0); }
-                    }}
-                    list="building-options"
-                    placeholder="Type or use +/−"
-                    className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-semibold text-[#0f1a35] bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  <datalist id="building-options">
-                    {buildings.map(b => <option key={b} value={b} />)}
-                  </datalist>
-                  <button
-                    onClick={() => { setSelBuildingIdx(i => Math.min(buildings.length - 1, i + 1)); setSelWingIdx(0); setSelFloor(0); }}
-                    disabled={selBuildingIdx >= buildings.length - 1}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">+</button>
-                </div>
-              </div>
-
-              {/* Wing */}
-              <div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Wing</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelWingIdx(i => Math.max(0, i - 1))}
-                    disabled={selWingIdx === 0}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">−</button>
-                  <input
-                    type="text"
-                    value={selWing}
-                    onChange={e => {
-                      const idx = wings.indexOf(e.target.value);
-                      if (idx >= 0) { setSelWingIdx(idx); setSelFloor(0); }
-                    }}
-                    list="wing-options"
-                    placeholder="Type or use +/−"
-                    className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-semibold text-[#0f1a35] bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  <datalist id="wing-options">
-                    {wings.map(w => <option key={w} value={w} />)}
-                  </datalist>
-                  <button
-                    onClick={() => { setSelWingIdx(i => Math.min(wings.length - 1, i + 1)); setSelFloor(0); }}
-                    disabled={selWingIdx >= wings.length - 1}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">+</button>
-                </div>
-              </div>
-
-              {/* Floor */}
-              <div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Floor</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelFloor(f => Math.max(0, f - 1))}
-                    disabled={selFloor === 0}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">−</button>
-                  <input
-                    type="text"
-                    value={selFloor === 0 ? "" : String(selFloor)}
-                    onChange={e => {
-                      const val = e.target.value.trim();
-                      if (val === "" || val === "0") { setSelFloor(0); return; }
-                      const n = parseInt(val, 10);
-                      if (!isNaN(n) && n >= 1 && n <= maxFloor) setSelFloor(n);
-                    }}
-                    placeholder="All floors"
-                    className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-semibold text-[#0f1a35] bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  <button
-                    onClick={() => setSelFloor(f => Math.min(maxFloor, f + 1))}
-                    disabled={selFloor >= maxFloor}
-                    className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 font-bold text-base leading-none transition-colors">+</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Clickable Floor Tabs */}
-            {(() => {
-              const availFloors: number[] = activePrj
-                ? Array.from(new Set(
-                    activePrj.units
-                      .filter(u => u.number.startsWith(`${selBldg}-W${selWing}-`))
-                      .map(u => u.floor)
-                  )).sort((a, b) => a - b)
-                : Array.from({ length: Math.max(maxFloor, 1) }, (_, i) => i + 1);
-              return availFloors.length > 0 ? (
-                <div className="flex gap-1.5 px-3 py-2 border-b border-gray-100 overflow-x-auto bg-white">
-                  <button
-                    onClick={() => setSelFloor(0)}
-                    className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                      selFloor === 0 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
-                    }`}>All</button>
-                  {availFloors.map(f => (
-                    <button key={f}
-                      onClick={() => setSelFloor(f)}
-                      className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                        selFloor === f ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
-                      }`}>F{f}</button>
-                  ))}
-                </div>
-              ) : null;
-            })()}
-
-            {/* Legend */}
-            <div className="flex gap-3 px-4 py-2 border-b border-gray-100 bg-gray-50 flex-wrap">
-              {[
-                { cls: "bg-green-100 border-green-300",  label: "Fully Booked / Paid" },
-                { cls: "bg-red-100 border-red-300",      label: "Hold / No Payment"   },
-                { cls: "bg-white border-gray-200",       label: "Available"            },
-              ].map(l => (
-                <div key={l.label} className="flex items-center gap-1">
-                  <div className={`w-3 h-3 rounded border ${l.cls}`} />
-                  <span className="text-[9px] text-gray-500">{l.label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Grid */}
-            <div className="p-3 grid grid-cols-4 gap-1.5 max-h-[380px] overflow-y-auto">
-              {gridUnits.length === 0 && (
-                <div className="col-span-4 text-center py-10 text-sm text-gray-400">No units for this selection.</div>
-              )}
-              {gridUnits.map((flat, idx) => (
-                <button key={`${flat.number}-${idx}`}
-                  onClick={() => setModalFlat({ number: flat.number, type: flat.type, status: flat.status, floor: flat.floor, occupant: flat.occupant })}
-                  title={flat.occupant ? `${flat.occupant} · ${flat.status}` : flat.status}
-                  className={`aspect-square flex flex-col items-center justify-center rounded-lg border text-[10px] font-semibold transition-all ${flatColorClass(flat.status)}`}>
-                  <span className="text-[8px] opacity-60">F{flat.floor}</span>
-                  <span>{String(flat.number).split("-").pop()}</span>
-                  {flat.occupant
-                    ? <span className="text-[7px] font-normal opacity-80 truncate w-full text-center px-0.5">{flat.occupant.split(" ")[0]}</span>
-                    : <span className="text-[8px] font-normal opacity-60">{flat.type}</span>
-                  }
-                </button>
-              ))}
-            </div>
-          </div>
+          <BookedFlatsGrid
+            projects={projects}
+            customerProfiles={customerProfiles}
+            checkFlatReleased={checkFlatReleased}
+            controlledNavigation={{
+              project: selProject,
+              buildingIdx: selBuildingIdx,
+              wingIdx: selWingIdx,
+              floor: selFloor,
+            }}
+            onNavigationChange={(nav) => {
+              setSelProject(nav.project);
+              setSelBuildingIdx(nav.buildingIdx);
+              setSelWingIdx(nav.wingIdx);
+              setSelFloor(nav.floor);
+            }}
+            className="sticky top-6"
+          />
         </div>
       </div>
-
-      {/* Flat detail modal */}
-      {modalFlat && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setModalFlat(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-72 p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-[#0f1a35]">Unit {String(modalFlat.number).split("-").pop()}</h3>
-              <button onClick={() => setModalFlat(null)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={15} /></button>
-            </div>
-            <div className="space-y-3">
-              {[
-                { k: "Full No.", v: modalFlat.number },
-                { k: "Type",    v: modalFlat.type    },
-                { k: "Floor",   v: `Floor ${modalFlat.floor}` },
-                ...(modalFlat.occupant ? [{ k: "Customer", v: modalFlat.occupant }] : []),
-                { k: "Status",  v: null },
-              ].map(row => (
-                <div key={row.k} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0">
-                  <span className="text-gray-400">{row.k}</span>
-                  {row.v ? <span className="font-semibold text-gray-800">{row.v}</span> : <Badge status={modalFlat.status} />}
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 flex gap-2">
-              {modalFlat.status === "available"
-                ? <button className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">Book This Unit</button>
-                : <button className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">View Details</button>
-              }
-              <button onClick={() => setModalFlat(null)} className="px-4 border border-gray-200 text-gray-500 py-2 rounded-lg text-sm hover:bg-gray-50">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

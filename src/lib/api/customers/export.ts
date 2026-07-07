@@ -1,5 +1,5 @@
-import { apiRequest } from "../client";
+import { apiRequestBlob } from "../client";
 
 export const customersExportApi = {
-  download: () => apiRequest<Blob>("/api/customers/export"),
+  download: () => apiRequestBlob("/api/customers/export"),
 };

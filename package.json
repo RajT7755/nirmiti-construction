@@ -1,8 +1,8 @@
 {
-  "name": "construction-cms-v3",
+  "name": "construction-cms-v4",
   "private": true,
-  "version": "3.0.0",
-  "description": "Nirmiti Developers Construction Management System — modular Figma CRM frontend (v3)",
+  "version": "4.0.0",
+  "description": "Nirmiti Developers Construction Management System — modular Figma CRM frontend (v4) with Backend API spec",
   "author": "Raj Taware <RajT7755>",
   "repository": {
     "type": "git",

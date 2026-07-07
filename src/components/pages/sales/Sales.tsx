@@ -4,11 +4,51 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip } from "recharts";
 import { fmt } from "@/lib/utils";
-import { DONUT_COLORS } from "@/lib/constants";
-import { donutData } from "@/lib/mockData";
+import {
+  getSlabPaymentDistribution,
+  getDistributionSummary,
+  getSlabColors,
+} from "@/lib/customers/paymentDistribution";
+import type {
+  CustomerDetailProfile,
+  PaymentCategoryKey,
+  ActiveSlabInfo,
+} from "@/lib/customers/customerDetailTypes";
+import type { AllocatePaymentInput } from "@/lib/storage/storeOperations";
 import type { Customer, Page, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
 
-export function Sales({ projects, customers, slabs, receivedPayments, onNav }: { projects: ProjectData[]; customers: Customer[]; slabs: SlabEntry[]; receivedPayments: ReceivedPayment[]; onNav: (p: Page) => void }) {
+type PayCategory = PaymentCategoryKey;
+
+const PMT_CATEGORIES: { key: PayCategory; label: string }[] = [
+  { key: "flat", label: "Flat Payment" },
+  { key: "gst", label: "GST" },
+  { key: "stamp", label: "Stamp Duty" },
+  { key: "agreement", label: "Agreement" },
+  { key: "parking", label: "Parking" },
+  { key: "electrical", label: "Electrical Bill" },
+];
+
+export function Sales({
+  projects,
+  customers,
+  customerProfiles,
+  slabs,
+  receivedPayments,
+  getActiveSlab,
+  getCategoryDueFor,
+  onAllocatePayment,
+  onNav,
+}: {
+  projects: ProjectData[];
+  customers: Customer[];
+  customerProfiles: CustomerDetailProfile[];
+  slabs: SlabEntry[];
+  receivedPayments: ReceivedPayment[];
+  getActiveSlab: (id: string) => ActiveSlabInfo | null;
+  getCategoryDueFor: (id: string, cat: PaymentCategoryKey) => number;
+  onAllocatePayment: (input: AllocatePaymentInput) => void;
+  onNav: (p: Page) => void;
+}) {
   const [propView, setPropView] = useState<"residential" | "commercial">("residential");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
@@ -55,27 +95,54 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
   const [searchQ, setSearchQ]         = useState("");
   const [selCustomer, setSelCustomer] = useState<Customer | null>(null);
   const [pmtType, setPmtType]         = useState<"residential"|"commercial">("residential");
-  const [pmtCat, setPmtCat]           = useState<"flat"|"gst"|"legal"|"stamp">("flat");
+  const [pmtCat, setPmtCat]           = useState<PayCategory>("flat");
+  const [selMockId, setSelMockId]     = useState<string | null>(null);
   const [receivedAmt, setReceivedAmt] = useState("");
   const [pmtMethod, setPmtMethod]     = useState("cash");
   const [pmtDate, setPmtDate]         = useState("");
   const [pmtSubmitted, setPmtSubmitted] = useState(false);
 
+  const payCustomers = customerProfiles.filter(
+    (c) => c.status !== "inactive" && c.unitType.toLowerCase() === pmtType
+  );
   const pmtSuggestions = searchQ.length >= 1
-    ? customers.filter(c => c.name.toLowerCase().includes(searchQ.toLowerCase()) || c.id.toLowerCase().includes(searchQ.toLowerCase()))
+    ? payCustomers.filter(
+        (c) =>
+          c.name.toLowerCase().includes(searchQ.toLowerCase()) ||
+          c.id.toLowerCase().includes(searchQ.toLowerCase())
+      )
     : [];
-  const catLabels: Record<string, string> = { flat:"Flat Payment", gst:"GST", legal:"Legal", stamp:"Stamp Duty" };
-  const pmtTotal = selCustomer
-    ? pmtCat === "flat" ? Math.round(selCustomer.amount * 0.10)
-    : pmtCat === "gst"  ? Math.round(selCustomer.amount * 0.05)
-    : pmtCat === "legal"? Math.round(selCustomer.amount * 0.02)
-    :                     Math.round(selCustomer.amount * 0.03)
+  const selMock = selMockId ? payCustomers.find((c) => c.id === selMockId) : null;
+  const activeSlab = selMockId ? getActiveSlab(selMockId) : null;
+  const pmtTotal = selMockId
+    ? pmtCat === "flat"
+      ? activeSlab?.remainingAmount ?? 0
+      : getCategoryDueFor(selMockId, pmtCat)
     : 0;
 
+  const slabDistSlices = getSlabPaymentDistribution(customerProfiles, propView);
+  const slabDistSummary = getDistributionSummary(slabDistSlices);
+  const slabDistColors = getSlabColors(slabDistSlices.length);
+
   function handlePmtSubmit() {
-    if (!selCustomer || !receivedAmt || !pmtDate) return;
+    if (!selMock || !receivedAmt || !pmtDate) return;
+    onAllocatePayment({
+      customerId: selMock.id,
+      category: pmtCat,
+      amount: Number(receivedAmt),
+      method: pmtMethod,
+      date: pmtDate,
+    });
     setPmtSubmitted(true);
-    setTimeout(() => { setPmtSubmitted(false); setShowPaymentModal(false); setSelCustomer(null); setSearchQ(""); setReceivedAmt(""); setPmtDate(""); }, 1800);
+    setTimeout(() => {
+      setPmtSubmitted(false);
+      setShowPaymentModal(false);
+      setSelCustomer(null);
+      setSelMockId(null);
+      setSearchQ("");
+      setReceivedAmt("");
+      setPmtDate("");
+    }, 1800);
   }
 
   return (
@@ -124,34 +191,68 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
       {/* ── Middle Section ── */}
       <div className="grid grid-cols-2 gap-5">
 
-        {/* Left — Donut Chart */}
+        {/* Left — Slab Payment Distribution Pie Chart */}
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-          <p className="text-sm font-semibold text-[#0f1a35] mb-4">Payment Distribution</p>
-          <div className="flex items-center gap-6">
-            <div className="shrink-0">
-              <PieChart width={160} height={160}>
-                <Pie data={donutData} cx={80} cy={80} innerRadius={45} outerRadius={75} dataKey="value" stroke="none">
-                  {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => [`${v}%`, ""]} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
-              </PieChart>
-            </div>
-            <div className="space-y-2.5 flex-1">
-              {[
-                { label: "Total Amount Received", pct: "100%", color: DONUT_COLORS[0] },
-                { label: "75% and above",         pct: "30%",  color: DONUT_COLORS[1] },
-                { label: "50% and above",         pct: "25%",  color: DONUT_COLORS[2] },
-                { label: "30% and above",         pct: "20%",  color: DONUT_COLORS[3] },
-                { label: "10% and above",         pct: "15%",  color: DONUT_COLORS[4] },
-              ].map(l => (
-                <div key={l.label} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm shrink-0" style={{ background: l.color }} />
-                  <span className="text-xs text-gray-600 flex-1">{l.label}</span>
-                  <span className="text-xs font-semibold text-gray-700">{l.pct}</span>
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-[#0f1a35]">Payment Distribution</p>
+            <span className="text-[10px] text-gray-400 uppercase tracking-widest">By Slab Stage</span>
           </div>
+          <p className="text-[11px] text-gray-400 mb-4 capitalize">
+            {propView} · slab payments received across customers
+          </p>
+          {slabDistSlices.length === 0 ? (
+            <p className="text-sm text-gray-400 py-8 text-center">No slab payments recorded yet.</p>
+          ) : (
+            <div className="flex items-center gap-6">
+              <div className="shrink-0 relative">
+                <PieChart width={180} height={180}>
+                  <Pie
+                    data={slabDistSlices}
+                    cx={90}
+                    cy={90}
+                    innerRadius={50}
+                    outerRadius={80}
+                    dataKey="value"
+                    nameKey="name"
+                    stroke="none"
+                    paddingAngle={2}
+                  >
+                    {slabDistSlices.map((_, i) => (
+                      <Cell key={i} fill={slabDistColors[i]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number, name: string) => [fmt(v), name]}
+                    contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                  />
+                </PieChart>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400 uppercase">Total</p>
+                    <p className="text-xs font-bold text-[#0f1a35]">{fmt(slabDistSummary.total)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2 flex-1 max-h-44 overflow-y-auto">
+                {slabDistSlices.map((slice, i) => {
+                  const pct = slabDistSummary.total > 0
+                    ? Math.round((slice.value / slabDistSummary.total) * 100)
+                    : 0;
+                  return (
+                    <div key={slice.name} className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-sm shrink-0"
+                        style={{ background: slabDistColors[i] }}
+                      />
+                      <span className="text-xs text-gray-600 flex-1 truncate">{slice.name}</span>
+                      <span className="text-xs font-semibold text-gray-700 shrink-0">{pct}%</span>
+                      <span className="text-[10px] text-green-700 font-medium shrink-0">{fmt(slice.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right — Admin Dues */}
@@ -276,22 +377,30 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
                 <CreditCard size={16} className="text-blue-600" />
                 <h3 className="text-base font-bold text-[#0f1a35]">Add Received Payment</h3>
               </div>
-              <button onClick={() => { setShowPaymentModal(false); setSelCustomer(null); setSearchQ(""); }} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400"><X size={16} /></button>
+              <button onClick={() => { setShowPaymentModal(false); setSelCustomer(null); setSelMockId(null); setSearchQ(""); }} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400"><X size={16} /></button>
             </div>
             <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              {/* Customer Search */}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest block mb-2">Property Type</label>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                  {(["residential","commercial"] as const).map(t => (
+                    <button key={t} onClick={() => { setPmtType(t); setSelMockId(null); setSelCustomer(null); setSearchQ(""); }}
+                      className={`flex-1 py-2 text-sm font-semibold capitalize transition-colors ${pmtType === t ? "bg-blue-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t}</button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest block mb-2">Search Customer</label>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" value={searchQ} onChange={e => { setSearchQ(e.target.value); setSelCustomer(null); }}
+                  <input type="text" value={searchQ} onChange={e => { setSearchQ(e.target.value); setSelMockId(null); setSelCustomer(null); }}
                     placeholder="Name or Customer ID…"
                     className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
-                {pmtSuggestions.length > 0 && !selCustomer && (
+                {pmtSuggestions.length > 0 && !selMock && (
                   <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                     {pmtSuggestions.map(c => (
-                      <button key={c.id} onClick={() => { setSelCustomer(c); setSearchQ(c.name); }}
+                      <button key={c.id} onClick={() => { setSelMockId(c.id); setSelCustomer(customers.find(x => x.id === c.id) ?? null); setSearchQ(c.name); }}
                         className="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
                         <p className="text-sm font-medium text-gray-800">{c.name}</p>
                         <p className="text-[11px] text-gray-400">{c.id} · Flat {c.flat} · {c.project}</p>
@@ -299,9 +408,9 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
                     ))}
                   </div>
                 )}
-                {selCustomer && (
+                {selMock && (
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg grid grid-cols-2 gap-2">
-                    {[{ k:"Customer ID",v:selCustomer.id },{ k:"Flat No.",v:selCustomer.flat },{ k:"Project",v:selCustomer.project },{ k:"Total Amt",v:fmt(selCustomer.amount) }].map(r => (
+                    {[{ k:"Customer ID",v:selMock.id },{ k:"Flat No.",v:selMock.flat },{ k:"Project",v:selMock.project },{ k:"Total Amt",v:fmt(selMock.amount) }].map(r => (
                       <div key={r.k}>
                         <p className="text-[10px] text-blue-500 font-semibold uppercase">{r.k}</p>
                         <p className="text-sm font-semibold text-[#0f1a35]">{r.v}</p>
@@ -310,34 +419,31 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
                   </div>
                 )}
               </div>
-              {/* Property Type */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest block mb-2">Property Type</label>
-                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-                  {(["residential","commercial"] as const).map(t => (
-                    <button key={t} onClick={() => setPmtType(t)}
-                      className={`flex-1 py-2 text-sm font-semibold capitalize transition-colors ${pmtType === t ? "bg-blue-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t}</button>
-                  ))}
-                </div>
-              </div>
-              {/* Payment Category */}
+              {selMock && (
+              <>
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest block mb-2">Payment Category</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["flat","gst","legal","stamp"] as const).map(cat => (
-                    <button key={cat} onClick={() => setPmtCat(cat)}
-                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${pmtCat === cat ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-blue-300"}`}>
-                      {catLabels[cat]}
+                  {PMT_CATEGORIES.map(cat => (
+                    <button key={cat.key} onClick={() => setPmtCat(cat.key)}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${pmtCat === cat.key ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-blue-300"}`}>
+                      {cat.label}
                     </button>
                   ))}
                 </div>
               </div>
-              {/* Payment Details */}
+              {pmtCat === "flat" && activeSlab && (
+                <div className="p-3 bg-[#0f1a35] rounded-xl text-white text-[11px] space-y-1">
+                  <p className="text-blue-300 uppercase text-[10px]">Active Slab</p>
+                  <p className="font-bold">#{activeSlab.slabNo} — {activeSlab.stage} ({activeSlab.percentage}%)</p>
+                  <p>Remaining: <span className="text-orange-300 font-bold">{fmt(activeSlab.remainingAmount)}</span></p>
+                </div>
+              )}
               <div className="space-y-3">
                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest block">Payment Details</label>
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Total Payment (from active slab) <span className="text-blue-400 font-normal">Auto</span></label>
-                  <input readOnly value={pmtTotal > 0 ? `₹${pmtTotal.toLocaleString("en-IN")}` : "—"}
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Total Payment Due <span className="text-blue-400 font-normal">Auto</span></label>
+                  <input readOnly value={pmtTotal > 0 ? fmt(pmtTotal) : "—"}
                     className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
                 </div>
                 <div>
@@ -369,15 +475,17 @@ export function Sales({ projects, customers, slabs, receivedPayments, onNav }: {
                 </div>
               )}
               <div className="flex gap-3 pt-1">
-                <button onClick={handlePmtSubmit} disabled={!selCustomer || !receivedAmt || !pmtDate}
+                <button onClick={handlePmtSubmit} disabled={!selMock || !receivedAmt || !pmtDate}
                   className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                   Record Payment
                 </button>
-                <button onClick={() => { setShowPaymentModal(false); setSelCustomer(null); setSearchQ(""); }}
+                <button onClick={() => { setShowPaymentModal(false); setSelCustomer(null); setSelMockId(null); setSearchQ(""); }}
                   className="px-5 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
               </div>
+              </>
+              )}
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ import { Inventory } from "@/components/pages/inventory/Inventory";
 import { Shareholder } from "@/components/pages/shareholder/Shareholder";
 import { Settings } from "@/components/pages/settings/Settings";
 import { useAppData } from "@/hooks/useAppData";
+import type { CustomerDetailProfile } from "@/lib/customers/customerDetailTypes";
 import type { Page, ProjectData, PropType } from "@/lib/types";
 
 const PAGE_TITLE: Record<string, string> = {
@@ -304,15 +305,25 @@ export default function App() {
   const [appState, setAppState] = useState<"login" | "setup" | "app">("login");
   const [page, setPage] = useState<Page>("dashboard");
   const [selectedSite, setSelectedSite] = useState<string>("All Sites");
+  const [proceedCustomer, setProceedCustomer] = useState<CustomerDetailProfile | null>(null);
 
   const {
     projects,
     customers,
+    customerProfiles,
     slabs,
     receivedPayments,
     addProject,
-    addCustomer,
+    registerCustomer,
+    allocatePayment,
+    deactivateCustomer,
+    getDetail,
+    getActiveSlab,
+    getCategoryDueFor,
+    bookedFlatsSummary,
+    checkFlatReleased,
     setSlabs,
+    sendWhatsAppBulk,
   } = useAppData();
 
   function handleCreateProject(p: ProjectData) {
@@ -334,27 +345,61 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
           {page === "dashboard" && <Dashboard projects={filteredProjects} />}
           {page === "customers" && (
-            <CustomerSales projects={filteredProjects} customers={customers} onAdd={() => setPage("add-customer")} />
+            <CustomerSales
+              projects={filteredProjects}
+              customers={customers}
+              customerProfiles={customerProfiles}
+              bookedFlatsSummary={bookedFlatsSummary}
+              checkFlatReleased={checkFlatReleased}
+              getDetail={getDetail}
+              onDeactivate={deactivateCustomer}
+              onAdd={() => {
+                setProceedCustomer(null);
+                setPage("add-customer");
+              }}
+              onProceed={(c) => {
+                setProceedCustomer(c);
+                setPage("add-customer");
+              }}
+            />
           )}
           {page === "add-customer" && (
             <AddCustomer
               projects={projects}
-              customers={customers}
-              onBack={() => setPage("customers")}
-              onSave={addCustomer}
+              customerProfiles={customerProfiles}
+              initialData={proceedCustomer}
+              proceedMode={!!proceedCustomer}
+              checkFlatReleased={checkFlatReleased}
+              onBack={() => {
+                setProceedCustomer(null);
+                setPage("customers");
+              }}
+              onRegister={registerCustomer}
             />
           )}
           {page === "sales" && (
             <Sales
               projects={filteredProjects}
               customers={customers}
+              customerProfiles={customerProfiles}
               slabs={slabs}
               receivedPayments={receivedPayments}
+              getActiveSlab={getActiveSlab}
+              getCategoryDueFor={getCategoryDueFor}
+              onAllocatePayment={allocatePayment}
               onNav={setPage}
             />
           )}
           {page === "received-payment" && (
-            <ReceivedPayments projects={projects} customers={customers} receivedPayments={receivedPayments} />
+            <ReceivedPayments
+              projects={projects}
+              customers={customers}
+              customerProfiles={customerProfiles}
+              receivedPayments={receivedPayments}
+              getActiveSlab={getActiveSlab}
+              getCategoryDueFor={getCategoryDueFor}
+              onAllocatePayment={allocatePayment}
+            />
           )}
           {page === "payment-slabs" && (
             <PaymentSlabs
@@ -362,6 +407,7 @@ export default function App() {
               customers={customers}
               slabs={slabs}
               setSlabs={setSlabs}
+              onWhatsAppSend={sendWhatsAppBulk}
               onBack={() => setPage("sales")}
             />
           )}

@@ -1,4 +1,7 @@
 const BADGE: Record<string, string> = {
+  active: "bg-blue-100 text-blue-700",
+  inactive: "bg-gray-200 text-gray-600",
+  temporary: "bg-orange-100 text-orange-700",
   paid: "bg-green-100 text-green-700",
   partial: "bg-blue-100 text-blue-700",
   overdue: "bg-orange-100 text-orange-700",
