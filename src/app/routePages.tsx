@@ -21,8 +21,8 @@ export function LoginRoute() {
 
   return (
     <LoginPage
-      onLogin={() => {
-        setLoggedIn();
+      onLogin={(credentials) => {
+        setLoggedIn(credentials);
         navigate("/setup");
       }}
     />
@@ -31,16 +31,21 @@ export function LoginRoute() {
 
 export function SetupRoute() {
   const navigate = useNavigate();
-  const { projects, addProject } = useAppDataContext();
+  const { projects, addProject, removeProject } = useAppDataContext();
 
   function handleCreate(p: ProjectData) {
     addProject(p);
+  }
+
+  async function handleDelete(project: ProjectData) {
+    return removeProject(project.id);
   }
 
   return (
     <SetupShell
       projects={projects}
       onCreate={handleCreate}
+      onDelete={handleDelete}
       onEnterDashboard={() => navigate("/dashboard")}
     />
   );
@@ -189,12 +194,13 @@ export function PaymentSlabsRoute() {
 
 export function ProjectsRoute() {
   const navigate = useNavigate();
-  const { projects, addProject } = useAppDataContext();
+  const { projects, addProject, removeProject } = useAppDataContext();
 
   return (
     <ProjectsPage
       projects={projects}
       onCreate={(p) => addProject(p)}
+      onDelete={(project) => removeProject(project.id)}
       onBack={() => navigate("/sales")}
     />
   );

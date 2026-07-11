@@ -4,6 +4,17 @@ import type { ProjectData } from "@/lib/types";
 export type CreateProjectRequest = Omit<ProjectData, "id" | "createdAt">;
 export type UpdateProjectRequest = Partial<Omit<ProjectData, "id">>;
 
+/** Sent with DELETE to re-authenticate destructive action on the backend */
+export type DeleteProjectRequest = {
+  username: string;
+  password: string;
+};
+
+export type DeleteProjectResponse = {
+  deleted: boolean;
+  projectId: string;
+};
+
 export const projectsApi = {
   list: () => apiRequest<ProjectData[]>("/api/projects"),
 
@@ -18,6 +29,13 @@ export const projectsApi = {
       body: JSON.stringify(body),
     }),
 
-  remove: (id: string) =>
-    apiRequest<{ deleted: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+  /**
+   * DELETE /api/projects/:id
+   * Optional body: DeleteProjectRequest (login re-auth for backend)
+   */
+  remove: (id: string, body?: DeleteProjectRequest) =>
+    apiRequest<DeleteProjectResponse>(`/api/projects/${id}`, {
+      method: "DELETE",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 };

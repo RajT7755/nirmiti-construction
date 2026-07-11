@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
 import {
-  ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight,
+  ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight, CheckCircle2,
 } from "lucide-react";
 import nirmitiLogo from "@/imports/nirmiti_logo.jpg";
 import { Sidebar } from "@/components/navigation/Sidebar";
@@ -61,7 +61,11 @@ export function TopBar({ page, projects = [], selectedSite = "All Sites", onSite
   );
 }
 
-export function LoginPage({ onLogin }: { onLogin: () => void }) {
+export function LoginPage({
+  onLogin,
+}: {
+  onLogin: (credentials: { username: string; password: string }) => void;
+}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]     = useState(false);
@@ -72,7 +76,10 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     e.preventDefault();
     if (!username.trim() || !password) { setError("Please enter your credentials."); return; }
     setError(""); setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin(); }, 800);
+    setTimeout(() => {
+      setLoading(false);
+      onLogin({ username: username.trim(), password });
+    }, 800);
   }
 
   return (
@@ -194,18 +201,39 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
 export function SetupShell({
   projects,
   onCreate,
+  onDelete,
   onEnterDashboard,
 }: {
   projects: ProjectData[];
   onCreate: (p: ProjectData) => void;
+  onDelete?: (project: ProjectData) => Promise<boolean>;
   onEnterDashboard?: () => void;
 }) {
   const [showForm, setShowForm] = useState(projects.length === 0);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (projects.length === 0) setShowForm(true);
+  }, [projects.length]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   return (
-    <div className="min-h-screen bg-[#f0f2f7]" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div
+      className="relative min-h-screen w-full bg-gradient-to-br from-[#e8ecf4] via-[#f0f2f7] to-[#dce4f0]"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
+      {toast && (
+        <div className="fixed top-6 left-1/2 z-[100] -translate-x-1/2 rounded-lg bg-green-600/95 px-4 py-2.5 text-sm font-medium text-white shadow-lg backdrop-blur-md">
+          {toast}
+        </div>
+      )}
       {/* Top bar */}
-      <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+      <header className="bg-white/80 backdrop-blur-md border-b border-white/60 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <img src={nirmitiLogo} alt="Nirmiti Developers" className="w-9 h-9 rounded-lg object-contain bg-white border border-gray-100 p-0.5" />
           <div>
@@ -219,7 +247,8 @@ export function SetupShell({
       <div className="max-w-5xl mx-auto px-6 pt-8 pb-16">
 
         {/* Intro */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="bg-white/75 backdrop-blur-md border border-white/60 rounded-2xl p-5 mb-6 shadow-sm">
+        <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold text-[#0f1a35]">Projects & Sites</h1>
             <p className="text-sm text-gray-400 mt-0.5">Add your projects and configure buildings, wings, and units.</p>
@@ -243,20 +272,26 @@ export function SetupShell({
             )}
           </div>
         </div>
+        </div>
 
         {/* Saved project cards */}
         {projects.length > 0 && (
           <div className="space-y-3 mb-6">
             {projects.map(p => (
-              <ProjectDetailCard key={p.id} project={p} />
+              <ProjectDetailCard
+                key={p.id}
+                project={p}
+                onDelete={onDelete}
+                onDeleted={(name) => setToast(`Project "${name}" deleted successfully`)}
+              />
             ))}
           </div>
         )}
 
         {/* Add Project Form */}
         {showForm && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <div className="bg-white/75 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/60 bg-white/50 backdrop-blur-sm">
               <p className="text-sm font-semibold text-[#0f1a35]">New Project / Site</p>
               {projects.length > 0 && (
                 <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
@@ -313,7 +348,7 @@ export function AppLayout({
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar page={pageKey} projects={projects} selectedSite={selectedSite} onSiteChange={onSiteChange} />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#e8ecf4] via-[#f0f2f7] to-[#dce4f0]">
           <Outlet />
         </main>
       </div>

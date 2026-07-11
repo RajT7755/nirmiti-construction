@@ -1,7 +1,18 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { CheckCircle2, Plus, X, Building2, ArrowRight } from "lucide-react";
+import { CheckCircle2, Plus, X, Building2, ArrowRight, Trash2 } from "lucide-react";
+import { DeleteConfirmation } from "./DeleteConfirmation";
 import { BHK_TYPES, PROP_TYPE_TAG } from "@/lib/constants";
-import { makeWing, makeBuilding, generateUnitsFromBuildings } from "@/lib/projectUtils";
+import {
+  makeWing,
+  makeBuilding,
+  generateUnitsFromBuildings,
+  calcSemiWingTotals,
+  calcSemiProjectTotals,
+  countBuildingUnits,
+  countProjectUnits,
+  flatsPerResidentialFloor,
+  semiResidentialFloors,
+} from "@/lib/projectUtils";
 import type { BuildingConfig, ProjectData, PropType, WingConfig } from "@/lib/types";
 import type { BhkEntry } from "@/lib/types";
 
@@ -57,9 +68,16 @@ function WingPanel({ wing, propType, onChange }: {
   wing: WingConfig; propType: PropType;
   onChange: (patch: Partial<WingConfig>) => void;
 }) {
-  const flatsPerFloor = Object.values(wing.bhk).reduce((s, b) => s + b.count, 0);
-  const totalFlats = wing.floors * flatsPerFloor;
-  const totalShops = wing.floors * wing.shopsPerFloor;
+  const flatsPerFloor = flatsPerResidentialFloor(wing);
+  const semiTotals = propType === "semi" ? calcSemiWingTotals(wing) : null;
+  const totalFlats =
+    propType === "semi"
+      ? (semiTotals?.flatsPerWing ?? 0)
+      : wing.floors * flatsPerFloor;
+  const totalShops =
+    propType === "semi"
+      ? (semiTotals?.shopsPerWing ?? 0)
+      : wing.floors * wing.shopsPerFloor;
 
   function updateBhk(type: string, patch: Partial<BhkEntry>) {
     onChange({ bhk: { ...wing.bhk, [type]: { ...wing.bhk[type], ...patch } } });
@@ -87,54 +105,83 @@ function WingPanel({ wing, propType, onChange }: {
         {wing.floors > 0 && (
           <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full mt-4">
             {wing.floors} floor{wing.floors !== 1 ? "s" : ""}
+            {propType === "semi" && semiTotals && (
+              <span className="text-gray-500 font-normal">
+                {" "}· {semiTotals.residentialFloors} residential
+              </span>
+            )}
           </span>
         )}
       </div>
 
-      {/* Commercial config */}
+      {propType === "semi" && wing.floors > 0 && semiTotals && (
+        <div className="rounded-lg border border-green-100 bg-green-50/60 px-3 py-2 text-[10px] text-green-800 space-y-0.5">
+          <p><span className="font-semibold">Ground floor shops:</span> {semiTotals.groundFloorShops}</p>
+          <p><span className="font-semibold">Residential floors:</span> {semiTotals.residentialFloors} (total − 1)</p>
+          <p><span className="font-semibold">Flats / wing:</span> {semiTotals.residentialFloors} × {semiTotals.flatsPerResidentialFloor} = {semiTotals.flatsPerWing}</p>
+        </div>
+      )}
+
+      {/* Commercial / ground floor shops */}
       {(propType === "commercial" || propType === "semi") && (
-        <div className="flex items-end gap-4 flex-wrap">
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Shops / Floor</label>
-            <Counter value={wing.shopsPerFloor} onChange={v => onChange({ shopsPerFloor: v })} />
-          </div>
-          <div className="flex-1 min-w-32">
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Carpet Area / Shop (sq.ft.)</label>
-            <input type="text" value={wing.shopArea}
-              onChange={e => onChange({ shopArea: e.target.value })}
-              placeholder="e.g. 450"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
-          </div>
-          {totalShops > 0 && (
-            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full mb-0.5">
-              {totalShops} shops total
-            </span>
+        <div className={`rounded-xl border p-4 space-y-3 ${
+          propType === "semi"
+            ? "border-indigo-100 bg-indigo-50/50"
+            : "border-gray-100 bg-white"
+        }`}>
+          {propType === "semi" ? (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-indigo-800 uppercase tracking-widest">Ground Floor</p>
+              <span className="text-[10px] font-semibold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">
+                OK — commercial
+              </span>
+            </div>
+          ) : (
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Shops per Floor</p>
           )}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">No. of Shops</label>
+              <Counter value={wing.shopsPerFloor} onChange={v => onChange({ shopsPerFloor: v })} />
+            </div>
+            {totalShops > 0 && (
+              <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full mt-4">
+                {totalShops} shop{totalShops !== 1 ? "s" : ""}
+                {propType === "semi" ? " on ground floor" : " total"}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Residential BHK config */}
       {(propType === "residential" || propType === "semi") && (
         <div>
-          {propType === "semi" && <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Residential Units</p>}
+          {propType === "semi" && (
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+              Flats per Residential Floor (floors 2+)
+            </p>
+          )}
           <div className="space-y-2">
             {BHK_TYPES.map(type => (
               <div key={type} className="flex items-center gap-3 px-3 py-2 bg-white rounded-lg border border-gray-100">
                 <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full w-11 text-center shrink-0">{type}</span>
                 <Counter value={wing.bhk[type].count} onChange={v => updateBhk(type, { count: v })} />
-                <span className="text-[10px] text-gray-400">units</span>
-                <div className="flex-1">
-                  <input type="text" value={wing.bhk[type].area}
-                    onChange={e => updateBhk(type, { area: e.target.value })}
-                    placeholder="Area (sq.ft.)"
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                </div>
+                <span className="text-[10px] text-gray-400">flats</span>
               </div>
             ))}
           </div>
           {totalFlats > 0 && (
             <span className="text-[10px] font-semibold text-green-600 bg-green-50 border border-green-100 px-2 py-1 rounded-full mt-2 inline-block">
-              {flatsPerFloor} flat{flatsPerFloor !== 1 ? "s" : ""} / floor · {totalFlats} total
+              {propType === "semi" ? (
+                <>
+                  {semiTotals?.residentialFloors ?? 0} res. floor{(semiTotals?.residentialFloors ?? 0) !== 1 ? "s" : ""} × {flatsPerFloor} flat{flatsPerFloor !== 1 ? "s" : ""} = {totalFlats} flats
+                </>
+              ) : (
+                <>
+                  {flatsPerFloor} flat{flatsPerFloor !== 1 ? "s" : ""} / floor · {totalFlats} total
+                </>
+              )}
             </span>
           )}
         </div>
@@ -158,11 +205,7 @@ function BuildingPanel({ bldg, bi, propType, onChange }: {
     const wings = bldg.wings.map((w, j) => j === i ? { ...w, ...patch } : w);
     onChange({ wings });
   }
-  const totalUnits = bldg.wings.reduce((s, w) => {
-    const flats = w.floors * Object.values(w.bhk).reduce((a, b) => a + b.count, 0);
-    const shops = w.floors * w.shopsPerFloor;
-    return s + (propType === "commercial" ? shops : propType === "residential" ? flats : flats + shops);
-  }, 0);
+  const totalUnits = countBuildingUnits(propType, bldg);
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
@@ -214,13 +257,44 @@ function formatBhkSummary(wing: WingConfig): string {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-export function ProjectDetailCard({ project }: { project: ProjectData }) {
+const PAGE_BG =
+  "min-h-[calc(100dvh-3.5rem)] w-full";
+
+const GLASS_CARD =
+  "bg-white/75 backdrop-blur-md border border-white/60 shadow-sm";
+
+export function ProjectDetailCard({
+  project,
+  onDelete,
+  onDeleted,
+}: {
+  project: ProjectData;
+  onDelete?: (project: ProjectData) => Promise<boolean>;
+  onDeleted?: (projectName: string) => void;
+}) {
   const buildings = project.buildings ?? [];
   const propTag = PROP_TYPE_TAG[project.propType];
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleDeleteConfirm() {
+    if (!onDelete) return;
+    setDeleting(true);
+    setDeleteError("");
+    const ok = await onDelete(project);
+    setDeleting(false);
+    if (ok) {
+      setDeleteOpen(false);
+      onDeleted?.(project.name);
+    } else {
+      setDeleteError("Failed to delete project. Please try again.");
+    }
+  }
 
   return (
-    <div className="bg-white rounded-xl border border-green-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 flex items-start gap-4 border-b border-green-100 bg-green-50/40">
+    <div className={`rounded-xl border border-green-200/80 ${GLASS_CARD}`}>
+      <div className="px-5 py-4 flex items-start gap-4 border-b border-green-100/80 bg-green-50/50 backdrop-blur-sm">
         <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -236,6 +310,17 @@ export function ProjectDetailCard({ project }: { project: ProjectData }) {
             {buildings.length > 0 && <span>{buildings.length} building{buildings.length !== 1 ? "s" : ""}</span>}
           </p>
         </div>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+            aria-label={`Delete ${project.name}`}
+          >
+            <Trash2 size={13} />
+            Delete
+          </button>
+        )}
       </div>
 
       {buildings.length > 0 && (
@@ -264,7 +349,17 @@ export function ProjectDetailCard({ project }: { project: ProjectData }) {
                       {(project.propType === "commercial" || project.propType === "semi") && wing.shopsPerFloor > 0 && (
                         <>
                           <span className="text-gray-400 mx-1">·</span>
-                          <span>{wing.shopsPerFloor} shop{wing.shopsPerFloor !== 1 ? "s" : ""}/floor</span>
+                          <span>
+                            {project.propType === "semi"
+                              ? `${wing.shopsPerFloor} ground shop${wing.shopsPerFloor !== 1 ? "s" : ""}`
+                              : `${wing.shopsPerFloor} shop${wing.shopsPerFloor !== 1 ? "s" : ""}/floor`}
+                          </span>
+                        </>
+                      )}
+                      {project.propType === "semi" && wing.floors > 0 && (
+                        <>
+                          <span className="text-gray-400 mx-1">·</span>
+                          <span>{semiResidentialFloors(wing)} res. floors · {calcSemiWingTotals(wing).flatsPerWing} flats</span>
                         </>
                       )}
                     </div>
@@ -276,6 +371,21 @@ export function ProjectDetailCard({ project }: { project: ProjectData }) {
             </div>
           ))}
         </div>
+      )}
+
+      {deleteOpen && onDelete && (
+        <DeleteConfirmation
+          project={project}
+          loading={deleting}
+          apiError={deleteError}
+          onClose={() => {
+            if (!deleting) {
+              setDeleteOpen(false);
+              setDeleteError("");
+            }
+          }}
+          onConfirm={handleDeleteConfirm}
+        />
       )}
     </div>
   );
@@ -322,14 +432,8 @@ export function ProjectSetup({
     setBuildings([]);
   }
 
-  // Live total for submit badge
-  const totalUnits = buildings.reduce((s, b) => {
-    return s + b.wings.reduce((ws, w) => {
-      const flats = w.floors * Object.values(w.bhk).reduce((a, x) => a + x.count, 0);
-      const shops = w.floors * w.shopsPerFloor;
-      return ws + (propType === "commercial" ? shops : propType === "residential" ? flats : flats + shops);
-    }, 0);
-  }, 0);
+  const totalUnits = propType ? countProjectUnits(propType, buildings) : 0;
+  const semiProjectTotals = propType === "semi" ? calcSemiProjectTotals(buildings) : null;
 
   function handleSubmit() {
     if (!projectName.trim() || !propType || buildings.length === 0) return;
@@ -419,8 +523,19 @@ export function ProjectSetup({
         <div className={animLvl === 4 ? "level-animate" : ""}>
           <LevelCard level={4} title="Wings, Floors & Units" locked={!lvl4} completed={false}>
             {propType === "semi" && (
-              <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-2.5 mb-4">
-                <p className="text-xs text-amber-700 font-medium">Mixed-Use: configure both Commercial and Residential units per wing.</p>
+              <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 mb-4 space-y-1.5">
+                <p className="text-xs font-semibold text-amber-900">Mixed-Use calculation</p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Ground floor = shops only · Floors 2+ = residential flats
+                </p>
+                <ul className="text-[10px] text-amber-700 list-disc list-inside space-y-0.5">
+                  <li>Ground floor → No. of Shops (commercial only)</li>
+                  <li>Shops / wing = Ground floor shop count</li>
+                  <li>Residential floors = Total floors − 1</li>
+                  <li>Flats / wing = Residential floors × Flats per residential floor</li>
+                  <li>Total shops = Buildings × Wings × Ground floor shops (per wing)</li>
+                  <li>Total flats = Σ (Residential floors × Flats per residential floor)</li>
+                </ul>
               </div>
             )}
             <div className="space-y-4">
@@ -439,9 +554,19 @@ export function ProjectSetup({
                 <CheckCircle2 size={15} /> Submit Project
               </button>
               {totalUnits > 0 && (
-                <span className="text-[11px] text-gray-400">
-                  <span className="font-semibold text-[#1e3a5f]">{totalUnits}</span> total units configured
-                </span>
+                <div className="text-[11px] text-gray-400">
+                  {semiProjectTotals ? (
+                    <span>
+                      <span className="font-semibold text-indigo-700">{semiProjectTotals.totalShops}</span> shops ·{" "}
+                      <span className="font-semibold text-green-700">{semiProjectTotals.totalResidentialFlats}</span> flats ·{" "}
+                      <span className="font-semibold text-[#1e3a5f]">{semiProjectTotals.totalUnits}</span> total units
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="font-semibold text-[#1e3a5f]">{totalUnits}</span> total units configured
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </LevelCard>
@@ -455,19 +580,39 @@ export function ProjectSetup({
 export function ProjectsPage({
   projects,
   onCreate,
+  onDelete,
   onBack,
   onEnterDashboard,
 }: {
   projects: ProjectData[];
   onCreate: (p: ProjectData) => void;
+  onDelete?: (project: ProjectData) => Promise<boolean>;
   onBack?: () => void;
   onEnterDashboard?: () => void;
 }) {
   const [showForm, setShowForm] = useState(projects.length === 0);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (projects.length === 0) setShowForm(true);
+  }, [projects.length]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between mb-6">
+    <div className={`${PAGE_BG} p-6`}>
+      <div className="relative mx-auto max-w-5xl">
+      {toast && (
+        <div className="fixed top-20 left-1/2 z-[100] -translate-x-1/2 rounded-lg bg-green-600/95 px-4 py-2.5 text-sm font-medium text-white shadow-lg backdrop-blur-md">
+          {toast}
+        </div>
+      )}
+      <div className={`mb-6 rounded-2xl p-5 ${GLASS_CARD}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[#0f1a35]">Projects & Sites</h1>
           <p className="text-sm text-gray-400 mt-0.5">Add your projects and configure buildings, wings, and units.</p>
@@ -491,18 +636,24 @@ export function ProjectsPage({
           )}
         </div>
       </div>
+      </div>
 
       {projects.length > 0 && (
         <div className="space-y-3 mb-6">
           {projects.map(p => (
-            <ProjectDetailCard key={p.id} project={p} />
+            <ProjectDetailCard
+              key={p.id}
+              project={p}
+              onDelete={onDelete}
+              onDeleted={(name) => setToast(`Project "${name}" deleted successfully`)}
+            />
           ))}
         </div>
       )}
 
       {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <div className={`rounded-2xl overflow-hidden ${GLASS_CARD}`}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/60 bg-white/50 backdrop-blur-sm">
             <p className="text-sm font-semibold text-[#0f1a35]">New Project / Site</p>
             {projects.length > 0 && (
               <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
@@ -519,14 +670,15 @@ export function ProjectsPage({
       )}
 
       {!showForm && projects.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
+        <div className={`rounded-2xl py-16 text-center ${GLASS_CARD}`}>
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
             <Building2 size={22} className="text-blue-400" />
           </div>
           <p className="text-sm font-semibold text-gray-600">No projects yet</p>
-          <p className="text-xs text-gray-400 mt-1">Click &quot;Add Project / Site&quot; to get started.</p>
+          <p className="mt-1 text-xs text-gray-400">Click &quot;Add Project / Site&quot; to get started.</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

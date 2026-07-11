@@ -235,6 +235,13 @@ export function addProject(store: AppStore, project: ProjectData): AppStore {
   return { ...store, projects };
 }
 
+export function removeProject(store: AppStore, projectId: string): AppStore {
+  return {
+    ...store,
+    projects: store.projects.filter((p) => p.id !== projectId),
+  };
+}
+
 export function queueWhatsApp(
   store: AppStore,
   entry: { templateName: string; recipientCount: number }

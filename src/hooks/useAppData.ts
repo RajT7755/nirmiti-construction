@@ -28,6 +28,7 @@ import {
   addSlab as addSlabOp,
   setSlabs as setSlabsOp,
   addProject as addProjectOp,
+  removeProject as removeProjectOp,
   queueWhatsApp,
   type AllocatePaymentInput,
 } from "@/lib/storage/storeOperations";
@@ -118,6 +119,26 @@ export function useAppData() {
         return;
       }
       persist(addProjectOp(store, p));
+    },
+    [store, persist]
+  );
+
+  const removeProject = useCallback(
+    async (
+      projectId: string,
+      credentials?: { username: string; password: string }
+    ): Promise<boolean> => {
+      if (!store) return false;
+      if (USE_API) {
+        try {
+          await apiRepository.projects.remove(projectId, credentials);
+        } catch (err) {
+          console.error("removeProject API error:", err);
+          return false;
+        }
+      }
+      persist(removeProjectOp(store, projectId));
+      return true;
     },
     [store, persist]
   );
@@ -411,6 +432,7 @@ export function useAppData() {
     receivedPayments,
     loading,
     addProject,
+    removeProject,
     addCustomer,
     registerCustomer,
     allocatePayment,

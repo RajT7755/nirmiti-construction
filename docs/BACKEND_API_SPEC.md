@@ -361,12 +361,26 @@ Frontend API module: `src/lib/api/projects/projects.ts`
 
 #### `DELETE /api/projects/:id`
 
-**Response 200:**
+**Request body (optional):** `DeleteProjectRequest` — re-authenticate before destructive delete
 
 ```json
-{ "deleted": true }
+{
+  "username": "bhagwat@nirmiti.in",
+  "password": "your-password"
+}
 ```
 
+Types in `src/lib/api/projects/projects.ts`:
+- `DeleteProjectRequest` — `{ username: string; password: string }`
+- `DeleteProjectResponse` — `{ deleted: boolean; projectId: string }`
+
+**Response 200:** `DeleteProjectResponse`
+
+```json
+{ "deleted": true, "projectId": "proj-001" }
+```
+
+**Response 401:** `{ "error": "Invalid credentials" }`  
 **Response 404:** `{ "error": "Project not found" }`
 
 ---
