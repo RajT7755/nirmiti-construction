@@ -69,7 +69,7 @@ Each file in `src/lib/api/` defines the exact URL, HTTP method, and TypeScript r
 
 | File | Types |
 |------|-------|
-| `src/lib/types.ts` | `ProjectData`, `SlabEntry`, `ReceivedPayment`, `DashboardSummary`, `Customer` |
+| `src/lib/types.ts` | `ProjectData`, `BuildingConfig`, `WingConfig`, `SlabEntry`, `ReceivedPayment`, `DashboardSummary`, `Customer` |
 | `src/lib/customers/customerDetailTypes.ts` | `CustomerDetailProfile`, `TemporaryBookingRecord`, `InactiveCustomerRecord`, `CategoryRow`, `SlabLedgerRow` |
 | `src/lib/customers/buildCustomerProfile.ts` | `AddCustomerFormInput` |
 | `src/lib/api/sales/paymentAllocation.ts` | `AllocatePaymentRequest`, `AllocatePaymentResult` |
@@ -99,7 +99,10 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 - [ ] `GET /api/health`
 - [ ] `GET /api/dashboard`
 - [ ] `GET /api/projects`
+- [ ] `GET /api/projects/:id`
 - [ ] `POST /api/projects`
+- [ ] `PATCH /api/projects/:id`
+- [ ] `DELETE /api/projects/:id`
 - [ ] `GET /api/customers/details`
 - [ ] `GET /api/customers/:id/details`
 - [ ] `POST /api/customers/register`
@@ -202,6 +205,61 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 
 ### Projects
 
+Types (`src/lib/types.ts`):
+
+```ts
+interface BhkEntry { count: number; area: string; }
+
+interface WingConfig {
+  id: string;
+  name: string;           // editable label, e.g. "A", "B", "Tower-1"
+  floors: number;
+  bhk: Record<string, BhkEntry>;  // keys: "1BHK" | "2BHK" | "3BHK" | "4BHK"
+  shopsPerFloor: number;
+  shopArea: string;
+}
+
+interface BuildingConfig {
+  id: string;
+  name: string;
+  numWings: number;
+  wings: WingConfig[];
+}
+
+interface FlatUnit {
+  id: string;
+  number: string;
+  floor: number;
+  kind: "flat" | "shop";
+  bhkType?: string;
+  status: "available" | "booked" | "overdue";
+}
+
+interface ProjectData {
+  id: string;
+  name: string;
+  propType: "residential" | "commercial" | "semi";
+  totalFlats: number;
+  totalShops: number;
+  buildings: BuildingConfig[];
+  units: FlatUnit[];
+  createdAt?: string;     // ISO 8601
+}
+```
+
+Frontend API module: `src/lib/api/projects/projects.ts`
+
+| Method | URL | Request type | Response |
+|--------|-----|--------------|----------|
+| `GET` | `/api/projects` | — | `ProjectData[]` |
+| `GET` | `/api/projects/:id` | — | `ProjectData` |
+| `POST` | `/api/projects` | `CreateProjectRequest` | `ProjectData` |
+| `PATCH` | `/api/projects/:id` | `UpdateProjectRequest` | `ProjectData` |
+| `DELETE` | `/api/projects/:id` | — | `{ deleted: boolean }` |
+
+`CreateProjectRequest = Omit<ProjectData, "id" | "createdAt">`  
+`UpdateProjectRequest = Partial<Omit<ProjectData, "id">>`
+
 #### `GET /api/projects`
 
 **Response 200:** `ProjectData[]`
@@ -214,25 +272,102 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
     "propType": "residential",
     "totalFlats": 120,
     "totalShops": 0,
+    "buildings": [
+      {
+        "id": "bldg-001",
+        "name": "Building 1",
+        "numWings": 1,
+        "wings": [
+          {
+            "id": "wing-001",
+            "name": "A",
+            "floors": 10,
+            "bhk": {
+              "1BHK": { "count": 2, "area": "650" },
+              "2BHK": { "count": 4, "area": "950" },
+              "3BHK": { "count": 0, "area": "" },
+              "4BHK": { "count": 0, "area": "" }
+            },
+            "shopsPerFloor": 0,
+            "shopArea": ""
+          }
+        ]
+      }
+    ],
     "units": [
       {
         "id": "u-001",
-        "number": "A-204",
+        "number": "Building 1-WA-201",
         "floor": 2,
         "kind": "flat",
         "bhkType": "2BHK",
         "status": "available"
       }
-    ]
+    ],
+    "createdAt": "2026-07-11T10:00:00.000Z"
   }
 ]
 ```
 
+#### `GET /api/projects/:id`
+
+**Response 200:** `ProjectData`  
+**Response 404:** `{ "error": "Project not found" }`
+
 #### `POST /api/projects`
 
-**Request body:** `ProjectData`
+**Request body:** `CreateProjectRequest` (server generates `id` and `createdAt` if omitted)
+
+```json
+{
+  "name": "Sunrise Heights",
+  "propType": "residential",
+  "totalFlats": 120,
+  "totalShops": 0,
+  "buildings": [
+    {
+      "id": "bldg-001",
+      "name": "Building 1",
+      "numWings": 1,
+      "wings": [
+        {
+          "id": "wing-001",
+          "name": "A",
+          "floors": 10,
+          "bhk": {
+            "1BHK": { "count": 2, "area": "650" },
+            "2BHK": { "count": 4, "area": "950" },
+            "3BHK": { "count": 0, "area": "" },
+            "4BHK": { "count": 0, "area": "" }
+          },
+          "shopsPerFloor": 0,
+          "shopArea": ""
+        }
+      ]
+    }
+  ],
+  "units": []
+}
+```
 
 **Response 201:** `ProjectData`
+
+#### `PATCH /api/projects/:id`
+
+**Request body:** `UpdateProjectRequest` (partial fields)
+
+**Response 200:** `ProjectData`  
+**Response 404:** `{ "error": "Project not found" }`
+
+#### `DELETE /api/projects/:id`
+
+**Response 200:**
+
+```json
+{ "deleted": true }
+```
+
+**Response 404:** `{ "error": "Project not found" }`
 
 ---
 

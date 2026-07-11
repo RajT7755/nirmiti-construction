@@ -10,20 +10,35 @@ export function defaultBhk() {
   };
 }
 
-export function makeWing(id: string): WingConfig {
-  return { id, floors: 0, bhk: defaultBhk(), shopsPerFloor: 0, shopArea: "" };
+export function defaultWingName(index: number): string {
+  return WING_LABELS[index] ?? String(index + 1);
+}
+
+export function makeWing(id: string, wingIndex = 0): WingConfig {
+  return {
+    id,
+    name: defaultWingName(wingIndex),
+    floors: 0,
+    bhk: defaultBhk(),
+    shopsPerFloor: 0,
+    shopArea: "",
+  };
 }
 
 export function makeBuilding(id: string): BuildingConfig {
   return { id, name: "", numWings: 0, wings: [] };
 }
 
+export function wingLabel(wing: WingConfig, index: number): string {
+  return wing.name?.trim() || defaultWingName(index);
+}
+
 export function generateUnitsFromBuildings(propType: PropType, buildings: BuildingConfig[]): FlatUnit[] {
   const units: FlatUnit[] = [];
-  buildings.forEach(bldg => {
+  buildings.forEach((bldg) => {
     const bLabel = bldg.name.trim() || bldg.id;
     bldg.wings.forEach((wing, wi) => {
-      const wLabel = WING_LABELS[wi] ?? `W${wi + 1}`;
+      const wLabel = wingLabel(wing, wi);
       for (let f = 1; f <= wing.floors; f++) {
         if (propType === "commercial" || propType === "semi") {
           for (let s = 1; s <= wing.shopsPerFloor; s++) {
@@ -38,7 +53,7 @@ export function generateUnitsFromBuildings(propType: PropType, buildings: Buildi
         }
         if (propType === "residential" || propType === "semi") {
           let seq = 1;
-          BHK_TYPES.forEach(type => {
+          BHK_TYPES.forEach((type) => {
             for (let u = 0; u < wing.bhk[type].count; u++) {
               units.push({
                 id: `${bLabel}-W${wLabel}-F${f}-${type}-${u}`,

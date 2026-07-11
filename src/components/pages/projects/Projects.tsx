@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { CheckCircle2 } from "lucide-react";
-import { BHK_TYPES, WING_LABELS } from "@/lib/constants";
+import { CheckCircle2, Plus, X, Building2, ArrowRight } from "lucide-react";
+import { BHK_TYPES, PROP_TYPE_TAG } from "@/lib/constants";
 import { makeWing, makeBuilding, generateUnitsFromBuildings } from "@/lib/projectUtils";
 import type { BuildingConfig, ProjectData, PropType, WingConfig } from "@/lib/types";
 import type { BhkEntry } from "@/lib/types";
@@ -53,11 +53,10 @@ function LevelCard({ level, title, locked, completed, children }: {
   );
 }
 
-function WingPanel({ wing, wi, propType, onChange }: {
-  wing: WingConfig; wi: number; propType: PropType;
+function WingPanel({ wing, propType, onChange }: {
+  wing: WingConfig; propType: PropType;
   onChange: (patch: Partial<WingConfig>) => void;
 }) {
-  const label = WING_LABELS[wi] ?? `Wing ${wi + 1}`;
   const flatsPerFloor = Object.values(wing.bhk).reduce((s, b) => s + b.count, 0);
   const totalFlats = wing.floors * flatsPerFloor;
   const totalShops = wing.floors * wing.shopsPerFloor;
@@ -68,8 +67,15 @@ function WingPanel({ wing, wi, propType, onChange }: {
 
   return (
     <div className="border border-gray-100 rounded-xl bg-gray-50/60 p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Wing {label}</span>
+      <div>
+        <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Wing Name</label>
+        <input
+          type="text"
+          value={wing.name}
+          onChange={e => onChange({ name: e.target.value })}
+          placeholder="e.g. A"
+          className="w-full max-w-xs border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#0f1a35] focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+        />
       </div>
 
       {/* Floors */}
@@ -144,7 +150,7 @@ function BuildingPanel({ bldg, bi, propType, onChange }: {
   function setWings(numWings: number) {
     const current = bldg.wings;
     const wings: WingConfig[] = Array.from({ length: numWings }, (_, i) =>
-      current[i] ?? makeWing(`w-${bldg.id}-${i}`)
+      current[i] ?? makeWing(`w-${bldg.id}-${i}`, i)
     );
     onChange({ numWings, wings });
   }
@@ -189,7 +195,7 @@ function BuildingPanel({ bldg, bi, propType, onChange }: {
       {bldg.wings.length > 0 && (
         <div className="p-4 grid gap-3" style={{ gridTemplateColumns: bldg.wings.length > 1 ? "1fr 1fr" : "1fr" }}>
           {bldg.wings.map((wing, wi) => (
-            <WingPanel key={wing.id} wing={wing} wi={wi} propType={propType}
+            <WingPanel key={wing.id} wing={wing} propType={propType}
               onChange={patch => updateWing(wi, patch)} />
           ))}
         </div>
@@ -201,7 +207,89 @@ function BuildingPanel({ bldg, bi, propType, onChange }: {
   );
 }
 
-export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) => void; onBack?: () => void }) {
+function formatBhkSummary(wing: WingConfig): string {
+  const parts = BHK_TYPES
+    .filter(type => wing.bhk[type].count > 0)
+    .map(type => `${wing.bhk[type].count}×${type}`);
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+export function ProjectDetailCard({ project }: { project: ProjectData }) {
+  const buildings = project.buildings ?? [];
+  const propTag = PROP_TYPE_TAG[project.propType];
+
+  return (
+    <div className="bg-white rounded-xl border border-green-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 flex items-start gap-4 border-b border-green-100 bg-green-50/40">
+        <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-[#0f1a35]">{project.name}</p>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${propTag}`}>
+              {project.propType}
+            </span>
+            <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Saved</span>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            {project.totalFlats > 0 && <span className="mr-3">{project.totalFlats} flats</span>}
+            {project.totalShops > 0 && <span className="mr-3">{project.totalShops} shops</span>}
+            {buildings.length > 0 && <span>{buildings.length} building{buildings.length !== 1 ? "s" : ""}</span>}
+          </p>
+        </div>
+      </div>
+
+      {buildings.length > 0 && (
+        <div className="px-5 py-4 space-y-3">
+          {buildings.map((bldg, bi) => (
+            <div key={bldg.id} className="border border-gray-100 rounded-lg bg-gray-50/50 p-3">
+              <p className="text-xs font-semibold text-[#0f1a35] mb-2">
+                {bldg.name.trim() || `Building ${bi + 1}`}
+                <span className="text-gray-400 font-normal ml-2">
+                  · {bldg.wings.length} wing{bldg.wings.length !== 1 ? "s" : ""}
+                </span>
+              </p>
+              {bldg.wings.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {bldg.wings.map((wing) => (
+                    <div key={wing.id} className="text-[11px] text-gray-600 bg-white rounded-md border border-gray-100 px-3 py-2">
+                      <span className="font-semibold text-[#1e3a5f]">Wing {wing.name.trim() || "—"}</span>
+                      <span className="text-gray-400 mx-1">·</span>
+                      <span>{wing.floors} floor{wing.floors !== 1 ? "s" : ""}</span>
+                      {(project.propType === "residential" || project.propType === "semi") && (
+                        <>
+                          <span className="text-gray-400 mx-1">·</span>
+                          <span>{formatBhkSummary(wing)}</span>
+                        </>
+                      )}
+                      {(project.propType === "commercial" || project.propType === "semi") && wing.shopsPerFloor > 0 && (
+                        <>
+                          <span className="text-gray-400 mx-1">·</span>
+                          <span>{wing.shopsPerFloor} shop{wing.shopsPerFloor !== 1 ? "s" : ""}/floor</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-400">No wings configured</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ProjectSetup({
+  onCreate,
+  onBack,
+  onSubmitted,
+}: {
+  onCreate: (p: ProjectData) => void;
+  onBack?: () => void;
+  onSubmitted?: () => void;
+}) {
   const [projectName, setProjectName] = useState("");
   const [propType, setPropType]       = useState<PropType | null>(null);
   const [numBuildings, setNumBuildings] = useState(0);
@@ -227,6 +315,13 @@ export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) 
     setBuildings(bs => bs.map((b, j) => j === i ? { ...b, ...patch } : b));
   }
 
+  function resetForm() {
+    setProjectName("");
+    setPropType(null);
+    setNumBuildings(0);
+    setBuildings([]);
+  }
+
   // Live total for submit badge
   const totalUnits = buildings.reduce((s, b) => {
     return s + b.wings.reduce((ws, w) => {
@@ -241,7 +336,18 @@ export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) 
     const units = generateUnitsFromBuildings(propType, buildings);
     const totalF = units.filter(u => u.kind === "flat").length;
     const totalS = units.filter(u => u.kind === "shop").length;
-    onCreate({ id: `prj-${Date.now()}`, name: projectName.trim(), propType, totalFlats: totalF, totalShops: totalS, units });
+    onCreate({
+      id: `prj-${Date.now()}`,
+      name: projectName.trim(),
+      propType,
+      totalFlats: totalF,
+      totalShops: totalS,
+      buildings,
+      units,
+      createdAt: new Date().toISOString(),
+    });
+    resetForm();
+    onSubmitted?.();
   }
 
   const propOptions: { type: PropType; icon: string; label: string; tag: string }[] = [
@@ -346,6 +452,84 @@ export function ProjectSetup({ onCreate, onBack }: { onCreate: (p: ProjectData) 
   );
 }
 
-export function Projects(props: { onCreate: (p: ProjectData) => void; onBack?: () => void }) {
-  return <ProjectSetup {...props} />;
+export function ProjectsPage({
+  projects,
+  onCreate,
+  onBack,
+  onEnterDashboard,
+}: {
+  projects: ProjectData[];
+  onCreate: (p: ProjectData) => void;
+  onBack?: () => void;
+  onEnterDashboard?: () => void;
+}) {
+  const [showForm, setShowForm] = useState(projects.length === 0);
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-[#0f1a35]">Projects & Sites</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Add your projects and configure buildings, wings, and units.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {onEnterDashboard && projects.length > 0 && (
+            <button
+              onClick={onEnterDashboard}
+              className="flex items-center gap-2 bg-[#0f1a35] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#1a2847] transition-colors"
+            >
+              Go to Dashboard <ArrowRight size={14} />
+            </button>
+          )}
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={14} /> Add Project / Site
+            </button>
+          )}
+        </div>
+      </div>
+
+      {projects.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {projects.map(p => (
+            <ProjectDetailCard key={p.id} project={p} />
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+            <p className="text-sm font-semibold text-[#0f1a35]">New Project / Site</p>
+            {projects.length > 0 && (
+              <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+          <ProjectSetup
+            onCreate={onCreate}
+            onBack={onBack}
+            onSubmitted={() => setShowForm(false)}
+          />
+        </div>
+      )}
+
+      {!showForm && projects.length === 0 && (
+        <div className="text-center py-16">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
+            <Building2 size={22} className="text-blue-400" />
+          </div>
+          <p className="text-sm font-semibold text-gray-600">No projects yet</p>
+          <p className="text-xs text-gray-400 mt-1">Click &quot;Add Project / Site&quot; to get started.</p>
+        </div>
+      )}
+    </div>
+  );
 }
+
+/** @deprecated Use ProjectsPage — kept for import compatibility */
+export const Projects = ProjectsPage;

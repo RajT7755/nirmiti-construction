@@ -6,7 +6,7 @@ import { setLoggedIn } from "@/lib/session";
 import { Dashboard } from "@/components/pages/dashboard/Dashboard";
 import { CustomerSales } from "@/components/pages/customers/CustomerSales";
 import { AddCustomer } from "@/components/pages/customers/AddCustomer";
-import { Projects } from "@/components/pages/projects/Projects";
+import { ProjectsPage } from "@/components/pages/projects/Projects";
 import { Sales } from "@/components/pages/sales/Sales";
 import { ReceivedPayments } from "@/components/pages/sales/ReceivedPayments";
 import { PaymentSlabs } from "@/components/pages/sales/PaymentSlabs";
@@ -31,14 +31,19 @@ export function LoginRoute() {
 
 export function SetupRoute() {
   const navigate = useNavigate();
-  const { addProject } = useAppDataContext();
+  const { projects, addProject } = useAppDataContext();
 
   function handleCreate(p: ProjectData) {
     addProject(p);
-    navigate("/dashboard");
   }
 
-  return <SetupShell onCreate={handleCreate} />;
+  return (
+    <SetupShell
+      projects={projects}
+      onCreate={handleCreate}
+      onEnterDashboard={() => navigate("/dashboard")}
+    />
+  );
 }
 
 function useSiteFilter() {
@@ -184,14 +189,12 @@ export function PaymentSlabsRoute() {
 
 export function ProjectsRoute() {
   const navigate = useNavigate();
-  const { addProject } = useAppDataContext();
+  const { projects, addProject } = useAppDataContext();
 
   return (
-    <Projects
-      onCreate={(p) => {
-        addProject(p);
-        navigate("/dashboard");
-      }}
+    <ProjectsPage
+      projects={projects}
+      onCreate={(p) => addProject(p)}
       onBack={() => navigate("/sales")}
     />
   );

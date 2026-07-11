@@ -21,6 +21,7 @@ export interface BhkEntry {
 
 export interface WingConfig {
   id: string;
+  name: string;
   floors: number;
   bhk: Record<string, BhkEntry>;
   shopsPerFloor: number;
@@ -87,7 +88,9 @@ export interface ProjectData {
   propType: PropType;
   totalFlats: number;
   totalShops: number;
+  buildings: BuildingConfig[];
   units: FlatUnit[];
+  createdAt?: string;
 }
 
 export interface SlabEntry {

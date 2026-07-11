@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import {
-  ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight, CheckCircle2,
+  ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
 import nirmitiLogo from "@/imports/nirmiti_logo.jpg";
 import { Sidebar } from "@/components/navigation/Sidebar";
-import { ProjectSetup } from "@/components/pages/projects/Projects";
-import type { ProjectData, PropType } from "@/lib/types";
+import { ProjectDetailCard, ProjectSetup } from "@/components/pages/projects/Projects";
+import type { ProjectData } from "@/lib/types";
 
 const PAGE_TITLE: Record<string, string> = {
   dashboard: "Dashboard",
@@ -191,21 +191,16 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-export function SetupShell({ onCreate }: { onCreate: (p: ProjectData) => void }) {
-  const [saved, setSaved]       = useState<ProjectData[]>([]);
-  const [showForm, setShowForm] = useState(true);
-
-  function handleCreate(p: ProjectData) {
-    setSaved(prev => [...prev, p]);
-    setShowForm(false);
-    onCreate(p);
-  }
-
-  const propTag: Record<PropType, string> = {
-    residential: "bg-blue-100 text-blue-700",
-    commercial:  "bg-indigo-100 text-indigo-700",
-    semi:        "bg-green-100 text-green-700",
-  };
+export function SetupShell({
+  projects,
+  onCreate,
+  onEnterDashboard,
+}: {
+  projects: ProjectData[];
+  onCreate: (p: ProjectData) => void;
+  onEnterDashboard?: () => void;
+}) {
+  const [showForm, setShowForm] = useState(projects.length === 0);
 
   return (
     <div className="min-h-screen bg-[#f0f2f7]" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -229,34 +224,31 @@ export function SetupShell({ onCreate }: { onCreate: (p: ProjectData) => void })
             <h1 className="text-xl font-bold text-[#0f1a35]">Projects & Sites</h1>
             <p className="text-sm text-gray-400 mt-0.5">Add your projects and configure buildings, wings, and units.</p>
           </div>
-          {!showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={14} /> Add Project / Site
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onEnterDashboard && projects.length > 0 && (
+              <button
+                onClick={onEnterDashboard}
+                className="flex items-center gap-2 bg-[#0f1a35] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#1a2847] transition-colors"
+              >
+                Go to Dashboard <ArrowRight size={14} />
+              </button>
+            )}
+            {!showForm && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus size={14} /> Add Project / Site
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Saved project cards */}
-        {saved.length > 0 && (
+        {projects.length > 0 && (
           <div className="space-y-3 mb-6">
-            {saved.map(p => (
-              <div key={p.id} className="bg-white rounded-xl border border-green-200 shadow-sm px-5 py-4 flex items-center gap-4">
-                <CheckCircle2 size={18} className="text-green-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#0f1a35]">{p.name}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    {p.totalFlats > 0 && <span className="mr-2">{p.totalFlats} flats</span>}
-                    {p.totalShops > 0 && <span>{p.totalShops} shops</span>}
-                  </p>
-                </div>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${propTag[p.propType]}`}>
-                  {p.propType}
-                </span>
-                <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Saved</span>
-              </div>
+            {projects.map(p => (
+              <ProjectDetailCard key={p.id} project={p} />
             ))}
           </div>
         )}
@@ -266,18 +258,18 @@ export function SetupShell({ onCreate }: { onCreate: (p: ProjectData) => void })
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
               <p className="text-sm font-semibold text-[#0f1a35]">New Project / Site</p>
-              {saved.length > 0 && (
+              {projects.length > 0 && (
                 <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
                   <X size={15} />
                 </button>
               )}
             </div>
-            <ProjectSetup onCreate={handleCreate} />
+            <ProjectSetup onCreate={onCreate} onSubmitted={() => setShowForm(false)} />
           </div>
         )}
 
         {/* Empty state */}
-        {!showForm && saved.length === 0 && (
+        {!showForm && projects.length === 0 && (
           <div className="text-center py-16">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
               <Building2 size={22} className="text-blue-400" />
