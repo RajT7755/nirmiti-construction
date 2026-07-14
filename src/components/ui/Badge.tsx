@@ -9,6 +9,11 @@ const BADGE: Record<string, string> = {
   confirmed: "bg-green-100 text-green-700",
   equity: "bg-indigo-100 text-indigo-700",
   debt: "bg-slate-100 text-slate-600",
+  issued: "bg-green-100 text-green-700",
+  sent: "bg-blue-100 text-blue-700",
+  draft: "bg-gray-100 text-gray-600",
+  superseded: "bg-amber-100 text-amber-800",
+  void: "bg-red-100 text-red-700",
 };
 
 export function Badge({ status }: { status: string }) {

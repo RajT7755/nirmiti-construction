@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Plus, AlertCircle, Search } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -36,7 +37,18 @@ export function CustomerSales({
   const [propView, setPropView] = useState<"residential" | "commercial">("residential");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const [showFlatsGrid, setShowFlatsGrid] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("panel") === "booked-flats") {
+      setShowFlatsGrid(true);
+    }
+    const status = searchParams.get("status");
+    if (status === "overdue") {
+      setFilterStatus("overdue");
+    }
+  }, [searchParams]);
 
   const propFiltered = customerProfiles.filter((c) =>
     propView === "residential"

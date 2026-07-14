@@ -15,6 +15,7 @@ export function createSeedStore(): AppStore {
     releasedTempIds: [],
     slabs: [],
     receivedPayments: [],
+    invoices: [],
     projects: [],
     whatsappOutbox: [],
   };

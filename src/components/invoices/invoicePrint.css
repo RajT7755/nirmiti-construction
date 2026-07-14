@@ -1,0 +1,46 @@
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+.invoice-a4-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media print {
+  aside,
+  header,
+  .invoice-no-print {
+    display: none !important;
+  }
+
+  main {
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  #invoice-print-root {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .invoice-a4-sheet {
+    width: 100% !important;
+    max-width: 210mm !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid;
+  }
+}

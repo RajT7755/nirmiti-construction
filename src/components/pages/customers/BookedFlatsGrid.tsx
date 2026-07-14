@@ -26,6 +26,7 @@ interface BookedFlatsGridProps {
   controlledNavigation?: GridNavigation;
   onNavigationChange?: (nav: GridNavigation) => void;
   onViewCustomer?: (customerId: string) => void;
+  onBookUnit?: (unit: { number: string; type: string; floor: number }) => void;
   compact?: boolean;
   className?: string;
 }
@@ -47,6 +48,7 @@ export function BookedFlatsGrid({
   controlledNavigation,
   onNavigationChange,
   onViewCustomer,
+  onBookUnit,
   compact = false,
   className = "",
 }: BookedFlatsGridProps) {
@@ -474,7 +476,17 @@ export function BookedFlatsGrid({
             </div>
             <div className="mt-5 flex gap-2">
               {modalFlat.status === "available" ? (
-                <button className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                <button
+                  onClick={() => {
+                    onBookUnit?.({
+                      number: modalFlat.number,
+                      type: modalFlat.type,
+                      floor: modalFlat.floor,
+                    });
+                    setModalFlat(null);
+                  }}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                >
                   Book This Unit
                 </button>
               ) : (

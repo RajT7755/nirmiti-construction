@@ -1,0 +1,129 @@
+@import "./motionShine.css";
+
+/* Glossy black dashboard button */
+
+.gradient-dash-btn {
+  position: relative;
+  display: inline-block;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 999px;
+  overflow: hidden;
+  isolation: isolate;
+  text-decoration: none;
+  min-width: 180px;
+  height: 46px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 8px 28px rgba(0, 0, 0, 0.55);
+}
+
+.gradient-dash-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 12px 36px rgba(0, 0, 0, 0.65),
+    0 0 24px rgba(255, 255, 255, 0.06);
+}
+
+.gradient-dash-btn:active {
+  transform: scale(0.98);
+}
+
+.gradient-dash-btn .gradient-wrapper {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #3d3d45 0%, #1a1a20 38%, #050508 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.gradient-dash-btn .shapes-wrapper,
+.gradient-dash-btn .blending-group-wrapper {
+  position: absolute;
+  inset: -30%;
+  pointer-events: none;
+}
+
+/* Button blob colours — motion from motionShine.css */
+.gradient-dash-btn .motion-shine-blob {
+  filter: blur(22px);
+}
+
+.gradient-dash-btn .motion-shine-blob--a {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, transparent 68%);
+  opacity: 0.55;
+}
+
+.gradient-dash-btn .motion-shine-blob--b {
+  background: radial-gradient(circle, rgba(180, 180, 190, 0.25) 0%, transparent 70%);
+  opacity: 0.55;
+}
+
+.gradient-dash-btn .motion-shine-blob--c {
+  background: radial-gradient(circle, rgba(220, 220, 230, 0.2) 0%, transparent 65%);
+  opacity: 0.55;
+}
+
+.gradient-dash-btn .green {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.04) 28%,
+    transparent 45%
+  );
+  mix-blend-mode: screen;
+  opacity: 1;
+}
+
+.gradient-dash-btn .black {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.65), transparent 55%);
+  mix-blend-mode: multiply;
+  opacity: 0.8;
+}
+
+.gradient-dash-btn .black-1,
+.gradient-dash-btn .orange,
+.gradient-dash-btn .orange-1,
+.gradient-dash-btn .purple-2,
+.gradient-dash-btn .blue-1 {
+  display: none;
+}
+
+.gradient-dash-btn .motion-shine-noise {
+  opacity: 0.08;
+}
+
+.gradient-dash-btn .text-wrapper {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  padding: 0 24px;
+}
+
+.gradient-dash-btn .text {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fafafa;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+
+.gradient-dash-btn .text-icon {
+  color: #e4e4e7;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+

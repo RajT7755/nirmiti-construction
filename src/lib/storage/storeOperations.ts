@@ -7,7 +7,7 @@ import type {
 import { applyCategoryPayment } from "@/lib/customers/categoryTotals";
 import { flatKeysMatch } from "@/lib/customers/resolveFlatGridStatus";
 import { allocateFlatPayment, getActiveSlabFromLedger } from "@/lib/customers/slabAllocator";
-import type { Customer, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
+import type { Customer, Invoice, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
 import type { AppStore } from "./storeTypes";
 
 export function toLegacyCustomer(c: CustomerDetailProfile): Customer {
@@ -240,6 +240,85 @@ export function removeProject(store: AppStore, projectId: string): AppStore {
     ...store,
     projects: store.projects.filter((p) => p.id !== projectId),
   };
+}
+
+export interface CreateInvoiceInput {
+  paymentId: string;
+  customerName: string;
+  flat: string;
+  amount: number;
+  date: string;
+  customerId?: string;
+}
+
+function nextInvoiceNo(store: AppStore): string {
+  const year = new Date().getFullYear();
+  const count = store.invoices.length + 1;
+  return `INV-${year}-${String(count).padStart(4, "0")}`;
+}
+
+function supersedeActiveInvoicesForPayment(store: AppStore, paymentId: string): AppStore {
+  const today = new Date().toISOString().slice(0, 10);
+  let changed = false;
+  const invoices = store.invoices.map((inv) => {
+    if (inv.paymentId === paymentId && (inv.lifecycle ?? "active") === "active") {
+      changed = true;
+      return { ...inv, lifecycle: "superseded" as const, supersededAt: today };
+    }
+    return inv;
+  });
+  return changed ? { ...store, invoices } : store;
+}
+
+export function updateReceivedPayment(
+  store: AppStore,
+  id: string,
+  patch: Partial<Pick<ReceivedPayment, "received" | "method" | "date" | "status">>
+): AppStore {
+  const idx = store.receivedPayments.findIndex((p) => p.id === id);
+  if (idx < 0) return store;
+  const updated = { ...store.receivedPayments[idx], ...patch };
+  const receivedPayments = [...store.receivedPayments];
+  receivedPayments[idx] = updated;
+  const withPayment = { ...store, receivedPayments };
+  return supersedeActiveInvoicesForPayment(withPayment, id);
+}
+
+export function createInvoice(store: AppStore, input: CreateInvoiceInput): AppStore {
+  if (
+    store.invoices.some(
+      (i) => i.paymentId === input.paymentId && (i.lifecycle ?? "active") === "active"
+    )
+  ) {
+    return store;
+  }
+
+  const paymentInvoices = store.invoices.filter((i) => i.paymentId === input.paymentId);
+  const revision =
+    paymentInvoices.length > 0
+      ? Math.max(...paymentInvoices.map((i) => i.revision ?? 1)) + 1
+      : 1;
+
+  const lastSuperseded = [...paymentInvoices]
+    .filter((i) => i.lifecycle === "superseded")
+    .sort((a, b) => (b.supersededAt ?? b.date).localeCompare(a.supersededAt ?? a.date))[0];
+
+  const invoice: Invoice = {
+    id: `INV-${Date.now()}`,
+    invoiceNo: nextInvoiceNo(store),
+    customerName: input.customerName,
+    customerId: input.customerId,
+    flat: input.flat,
+    amount: input.amount,
+    paymentId: input.paymentId,
+    date: input.date,
+    status: "issued",
+    lifecycle: "active",
+    revision,
+    supersedesInvoiceId: lastSuperseded?.id,
+  };
+
+  return { ...store, invoices: [...store.invoices, invoice] };
 }
 
 export function queueWhatsApp(

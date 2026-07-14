@@ -29,14 +29,35 @@ import {
   setSlabs as setSlabsOp,
   addProject as addProjectOp,
   removeProject as removeProjectOp,
+  createInvoice as createInvoiceOp,
+  updateReceivedPayment as updateReceivedPaymentOp,
   queueWhatsApp,
   type AllocatePaymentInput,
+  type CreateInvoiceInput,
 } from "@/lib/storage/storeOperations";
 import { STORE_VERSION } from "@/lib/storage/storeKeys";
 import type { AppStore } from "@/lib/storage/storeTypes";
 import type { Customer, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
 import type { AddCustomerFormInput } from "@/lib/customers/buildCustomerProfile";
 import { buildCustomerProfile } from "@/lib/customers/buildCustomerProfile";
+import { canEditBusinessProfile } from "@/lib/auth/businessProfileAccess";
+import { registerLocalUser } from "@/lib/auth/registeredUsersStore";
+import {
+  createDefaultBusinessProfile,
+  createDefaultModuleSettings,
+  createDefaultProfileSettings,
+  createDefaultSalesSettings,
+  resolveBusinessProfile,
+  resolveSalesSettings,
+} from "@/lib/settings/defaultSettings";
+import type {
+  BusinessProfileData,
+  InvoiceTemplateSettings,
+  MessengerTemplateSettings,
+  ModuleSettingsData,
+  ProfileSettingsData,
+  SalesSettingsData,
+} from "@/lib/settings/settingsTypes";
 
 const USE_API = import.meta.env.VITE_USE_API === "true";
 
@@ -48,8 +69,13 @@ function createEmptyStore(): AppStore {
     releasedTempIds: [],
     slabs: [],
     receivedPayments: [],
+    invoices: [],
     projects: [],
     whatsappOutbox: [],
+    businessProfile: createDefaultBusinessProfile(),
+    salesSettings: createDefaultSalesSettings(),
+    inventorySettings: createDefaultModuleSettings(),
+    customerSettings: createDefaultModuleSettings(),
   };
 }
 
@@ -105,6 +131,25 @@ export function useAppData() {
   const projects = store?.projects ?? [];
   const slabs = store?.slabs ?? [];
   const receivedPayments = store?.receivedPayments ?? [];
+  const invoices = store?.invoices ?? [];
+
+  const businessProfile = useMemo(
+    () => resolveBusinessProfile(store?.businessProfile),
+    [store?.businessProfile]
+  );
+
+  const profileSettings = useMemo(
+    () => store?.profileSettings ?? createDefaultProfileSettings(),
+    [store?.profileSettings]
+  );
+
+  const salesSettings = useMemo(
+    () => resolveSalesSettings(store?.salesSettings),
+    [store?.salesSettings]
+  );
+
+  const invoiceTemplate = salesSettings.invoiceTemplate;
+  const messengerTemplates = salesSettings.messengerTemplates;
 
   const addProject = useCallback(
     async (p: ProjectData) => {
@@ -325,6 +370,28 @@ export function useAppData() {
     [store, persist]
   );
 
+  const createInvoice = useCallback(
+    async (input: CreateInvoiceInput) => {
+      if (!store) return null;
+
+      if (USE_API) {
+        try {
+          const created = await apiRepository.invoices.create(input);
+          persist({ ...store, invoices: [...store.invoices, created] });
+          return created;
+        } catch (err) {
+          console.error("createInvoice API error:", err);
+          return null;
+        }
+      }
+
+      const next = createInvoiceOp(store, input);
+      persist(next);
+      return next.invoices[next.invoices.length - 1] ?? null;
+    },
+    [store, persist]
+  );
+
   const addReceivedPayment = useCallback(
     async (r: ReceivedPayment) => {
       if (!store) return;
@@ -340,6 +407,36 @@ export function useAppData() {
       }
 
       persist({ ...store, receivedPayments: [...store.receivedPayments, r] });
+    },
+    [store, persist]
+  );
+
+  const updateReceivedPayment = useCallback(
+    async (
+      id: string,
+      patch: Partial<Pick<ReceivedPayment, "received" | "method" | "date" | "status">>
+    ) => {
+      if (!store) return null;
+
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.received.update(id, patch);
+          const withPayment = {
+            ...store,
+            receivedPayments: store.receivedPayments.map((p) => (p.id === id ? updated : p)),
+          };
+          const next = updateReceivedPaymentOp(withPayment, id, patch);
+          persist(next);
+          return updated;
+        } catch (err) {
+          console.error("updateReceivedPayment API error:", err);
+          return null;
+        }
+      }
+
+      const next = updateReceivedPaymentOp(store, id, patch);
+      persist(next);
+      return next.receivedPayments.find((p) => p.id === id) ?? null;
     },
     [store, persist]
   );
@@ -422,6 +519,169 @@ export function useAppData() {
     [store]
   );
 
+  const registerUser = useCallback(
+    async (input: {
+      userId: string;
+      fullName: string;
+      email: string;
+      password: string;
+    }) => {
+      if (USE_API) {
+        await apiRepository.registration.register(input);
+        return input;
+      }
+      const user = registerLocalUser(input);
+      if (store && !resolveBusinessProfile(store.businessProfile).ownerEmail) {
+        const bp = resolveBusinessProfile(store.businessProfile);
+        persist({
+          ...store,
+          businessProfile: {
+            ...bp,
+            ownerEmail: input.email.trim(),
+            email: input.email.trim(),
+          },
+        });
+      }
+      return user;
+    },
+    [store, persist]
+  );
+
+  const updateBusinessProfile = useCallback(
+    async (patch: Partial<BusinessProfileData>) => {
+      if (!store) return null;
+      const current = resolveBusinessProfile(store.businessProfile);
+      const loggedInEmail = store.profileSettings?.email ?? "";
+      if (!canEditBusinessProfile(current, loggedInEmail)) {
+        console.warn("Business profile edit denied: not owner");
+        return null;
+      }
+      const { ownerEmail: _owner, ...safePatch } = patch;
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.businessProfile.update(safePatch);
+          persist({ ...store, businessProfile: { ...current, ...updated } });
+          return { ...current, ...updated };
+        } catch (err) {
+          console.error("updateBusinessProfile API error:", err);
+          return null;
+        }
+      }
+      const updated = { ...current, ...safePatch, isActivated: true };
+      persist({ ...store, businessProfile: updated });
+      return updated;
+    },
+    [store, persist]
+  );
+
+  const updateProfileSettings = useCallback(
+    async (patch: Partial<ProfileSettingsData>) => {
+      if (!store) return null;
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.profileSettings.update(patch);
+          persist({ ...store, profileSettings: updated });
+          return updated;
+        } catch (err) {
+          console.error("updateProfileSettings API error:", err);
+          return null;
+        }
+      }
+      const updated = { ...createDefaultProfileSettings(store.profileSettings), ...patch };
+      persist({ ...store, profileSettings: updated });
+      return updated;
+    },
+    [store, persist]
+  );
+
+  const updateInvoiceTemplate = useCallback(
+    async (patch: Partial<InvoiceTemplateSettings>) => {
+      if (!store) return null;
+      const current = resolveSalesSettings(store.salesSettings);
+      const nextTemplate = { ...current.invoiceTemplate, ...patch };
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.salesSettings.updateInvoiceTemplate(patch);
+          persist({
+            ...store,
+            salesSettings: { ...current, invoiceTemplate: updated },
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateInvoiceTemplate API error:", err);
+          return null;
+        }
+      }
+      const next: SalesSettingsData = { ...current, invoiceTemplate: nextTemplate };
+      persist({ ...store, salesSettings: next });
+      return nextTemplate;
+    },
+    [store, persist]
+  );
+
+  const updateMessengerTemplates = useCallback(
+    async (patch: Partial<MessengerTemplateSettings>) => {
+      if (!store) return null;
+      const current = resolveSalesSettings(store.salesSettings);
+      const nextTemplates = { ...current.messengerTemplates, ...patch };
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.salesSettings.updateMessengerTemplates(patch);
+          persist({
+            ...store,
+            salesSettings: { ...current, messengerTemplates: updated },
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateMessengerTemplates API error:", err);
+          return null;
+        }
+      }
+      const next: SalesSettingsData = { ...current, messengerTemplates: nextTemplates };
+      persist({ ...store, salesSettings: next });
+      return nextTemplates;
+    },
+    [store, persist]
+  );
+
+  const updateModuleSettings = useCallback(
+    async (
+      key: "inventorySettings" | "customerSettings",
+      patch: Partial<ModuleSettingsData>
+    ) => {
+      if (!store) return null;
+      const api =
+        key === "inventorySettings"
+          ? apiRepository.inventorySettings
+          : apiRepository.customerSettings;
+      if (USE_API) {
+        try {
+          const updated = await api.update(patch);
+          persist({ ...store, [key]: updated });
+          return updated;
+        } catch (err) {
+          console.error(`update ${key} API error:`, err);
+          return null;
+        }
+      }
+      const current = store[key] ?? createDefaultModuleSettings();
+      const updated = { ...current, ...patch };
+      persist({ ...store, [key]: updated });
+      return updated;
+    },
+    [store, persist]
+  );
+
+  const getInvoiceById = useCallback(
+    (id: string) => invoices.find((inv) => inv.id === id),
+    [invoices]
+  );
+
+  const getPaymentById = useCallback(
+    (id: string) => receivedPayments.find((p) => p.id === id),
+    [receivedPayments]
+  );
+
   return {
     store,
     projects,
@@ -430,6 +690,7 @@ export function useAppData() {
     activeProfiles,
     slabs,
     receivedPayments,
+    invoices,
     loading,
     addProject,
     removeProject,
@@ -440,12 +701,32 @@ export function useAppData() {
     addSlab,
     setSlabs,
     addReceivedPayment,
+    updateReceivedPayment,
+    createInvoice,
     sendWhatsAppBulk,
     getDetail,
     getActiveSlab,
     getCategoryDueFor,
     bookedFlatsSummary,
     checkFlatReleased,
+    businessProfile,
+    profileSettings,
+    salesSettings,
+    invoiceTemplate,
+    messengerTemplates,
+    inventorySettings: store?.inventorySettings ?? createDefaultModuleSettings(),
+    customerSettings: store?.customerSettings ?? createDefaultModuleSettings(),
+    registerUser,
+    updateBusinessProfile,
+    updateProfileSettings,
+    updateInvoiceTemplate,
+    updateMessengerTemplates,
+    updateInventorySettings: (patch: Partial<ModuleSettingsData>) =>
+      updateModuleSettings("inventorySettings", patch),
+    updateCustomerSettings: (patch: Partial<ModuleSettingsData>) =>
+      updateModuleSettings("customerSettings", patch),
+    getInvoiceById,
+    getPaymentById,
     setProjects: (p: ProjectData[]) => store && persist({ ...store, projects: p }),
     setCustomers: () => {},
     setReceivedPayments: (r: ReceivedPayment[]) =>

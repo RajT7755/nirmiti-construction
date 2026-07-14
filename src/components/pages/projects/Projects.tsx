@@ -16,18 +16,71 @@ import {
 import type { BuildingConfig, ProjectData, PropType, WingConfig } from "@/lib/types";
 import type { BhkEntry } from "@/lib/types";
 
-function Counter({ value, onChange, min = 0 }: { value: number; onChange: (n: number) => void; min?: number }) {
+function Counter({
+  value,
+  onChange,
+  min = 0,
+  max,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  function clamp(n: number): number {
+    let next = Math.max(min, n);
+    if (max !== undefined) next = Math.min(max, next);
+    return next;
+  }
+
+  function commitDraft(raw: string) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed)) {
+      onChange(min);
+      setDraft(String(min));
+      return;
+    }
+    const next = clamp(parsed);
+    onChange(next);
+    setDraft(String(next));
+  }
+
   return (
     <div className="flex items-center gap-1">
       <button
-        onClick={() => onChange(Math.max(min, value - 1))}
+        type="button"
+        onClick={() => onChange(clamp(value - 1))}
         className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors font-bold text-base leading-none"
-      >−</button>
-      <span className="w-8 text-center text-sm font-semibold text-[#0f1a35]">{value}</span>
+      >
+        −
+      </button>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => commitDraft(draft)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
+        className="w-12 border border-gray-200 rounded-lg px-1 py-0.5 text-sm font-semibold text-[#0f1a35] text-center focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
       <button
-        onClick={() => onChange(value + 1)}
+        type="button"
+        onClick={() => onChange(clamp(value + 1))}
         className="w-7 h-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors font-bold text-base leading-none"
-      >+</button>
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -294,17 +347,17 @@ export function ProjectDetailCard({
 
   return (
     <div className={`rounded-xl border border-green-200/80 ${GLASS_CARD}`}>
-      <div className="px-5 py-4 flex items-start gap-4 border-b border-green-100/80 bg-green-50/50 backdrop-blur-sm">
-        <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
+      <div className="flex items-start gap-4 border-b border-green-100/80 bg-green-50/50 px-5 py-4 backdrop-blur-sm">
+        <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-500" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-[#0f1a35]">{project.name}</p>
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${propTag}`}>
               {project.propType}
             </span>
-            <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Saved</span>
+            <span className="rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600">Saved</span>
           </div>
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="mt-1 text-[11px] text-gray-400">
             {project.totalFlats > 0 && <span className="mr-3">{project.totalFlats} flats</span>}
             {project.totalShops > 0 && <span className="mr-3">{project.totalShops} shops</span>}
             {buildings.length > 0 && <span>{buildings.length} building{buildings.length !== 1 ? "s" : ""}</span>}
@@ -470,9 +523,9 @@ export function ProjectSetup({
         .level-animate { animation: levelIn 300ms cubic-bezier(0.215,0.610,0.355,1.000) both; }
       `}</style>
 
-      <div className="p-6 space-y-4 max-w-5xl">
+      <div className="max-w-5xl space-y-4 p-6">
         {onBack && (
-          <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700">
             ← Back to Sales
           </button>
         )}

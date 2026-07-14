@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
 import {
-  ChevronDown, Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight, CheckCircle2,
+  Plus, X, Building2, Bell, Eye, EyeOff, ArrowRight, CheckCircle2,
 } from "lucide-react";
-import nirmitiLogo from "@/imports/nirmiti_logo.jpg";
+import { LoginAboutModal, LoginCornerBranding } from "@/components/auth/LoginAboutModal";
+import { LogoutButton } from "@/components/auth/LogoutButton";
+import { UserSessionBadge } from "@/components/auth/UserSessionBadge";
+import { useAppDataContext } from "./AppDataContext";
+import { BrandMark } from "@/components/branding/BrandMark";
 import { Sidebar } from "@/components/navigation/Sidebar";
+import { resolveBusinessProfile, resolveCompanyName } from "@/lib/settings/defaultSettings";
+import type { BusinessProfileData } from "@/lib/settings/settingsTypes";
+import { GradientDashboardButton } from "@/components/ui/GradientDashboardButton";
 import { ProjectDetailCard, ProjectSetup } from "@/components/pages/projects/Projects";
 import type { ProjectData } from "@/lib/types";
 
@@ -15,13 +22,22 @@ const PAGE_TITLE: Record<string, string> = {
   sales: "Sales",
   "received-payment": "Received Payment",
   "payment-slabs": "Payment Slabs",
+  messenger: "Messenger",
   inventory: "Inventory",
   shareholder: "Shareholder",
   projects: "Projects",
   settings: "Settings",
+  "settings-profile": "Profile Settings",
+  "settings-business": "Business Profile",
+  "settings-sales": "Sales Settings",
+  "settings-invoice-template": "Invoice Template",
+  "settings-message-templates": "Message Templates",
+  "sales-invoice": "Invoice",
 };
 
 export function TopBar({ page, projects = [], selectedSite = "All Sites", onSiteChange = () => {} }: { page: string, projects?: ProjectData[], selectedSite?: string, onSiteChange?: (s: string) => void }) {
+  const { profileSettings } = useAppDataContext();
+
   return (
     <header className="h-14 shrink-0 bg-white border-b border-gray-100 flex items-center justify-between px-6">
       <div className="flex items-center gap-6">
@@ -51,39 +67,61 @@ export function TopBar({ page, projects = [], selectedSite = "All Sites", onSite
           <Bell size={15} />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-orange-500 rounded-full" />
         </button>
-        <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[11px] font-bold">CE</div>
-          <span className="text-sm text-gray-700 font-medium">CEO</span>
-          <ChevronDown size={13} className="text-gray-400" />
-        </div>
+        <UserSessionBadge profile={profileSettings} variant="topbar" />
+        <LogoutButton variant="topbar" />
       </div>
     </header>
   );
 }
 
 export function LoginPage({
+  businessProfile,
   onLogin,
+  onGoRegister,
+  registeredSuccess,
 }: {
-  onLogin: (credentials: { username: string; password: string }) => void;
+  businessProfile?: Partial<BusinessProfileData> | null;
+  onLogin: (credentials: { username: string; password: string }) => Promise<void>;
+  onGoRegister: () => void;
+  registeredSuccess?: boolean;
 }) {
+  const resolvedProfile = resolveBusinessProfile(businessProfile);
+  const companyName = resolveCompanyName(businessProfile);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]     = useState(false);
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim() || !password) { setError("Please enter your credentials."); return; }
-    setError(""); setLoading(true);
-    setTimeout(() => {
+    setError("");
+    setLoading(true);
+    try {
+      await onLogin({ username: username.trim(), password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
+    } finally {
       setLoading(false);
-      onLogin({ username: username.trim(), password });
-    }, 800);
+    }
   }
 
   return (
-    <div className="min-h-screen flex" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen flex relative" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="absolute top-4 right-4 z-20 lg:top-6 lg:right-6">
+        <LoginCornerBranding
+          businessProfile={businessProfile}
+          onAboutClick={() => setShowAbout(true)}
+          variant="dark"
+        />
+      </div>
+
+      {showAbout && (
+        <LoginAboutModal businessProfile={resolvedProfile} onClose={() => setShowAbout(false)} />
+      )}
+
       {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden" style={{ background: "#0f1a35" }}>
         <div
@@ -92,13 +130,8 @@ export function LoginPage({
             backgroundImage: "radial-gradient(circle at 30% 40%, #2563eb 0%, transparent 60%), radial-gradient(circle at 80% 80%, #1e40af 0%, transparent 50%)",
           }}
         />
-        {/* Logo */}
-        <div className="relative flex items-center gap-4">
-          <img src={nirmitiLogo} alt="Nirmiti Developers" className="w-14 h-14 rounded-xl object-contain bg-white p-1" />
-          <div>
-            <div className="text-white text-xl font-bold leading-tight">Nirmiti Developers</div>
-            <div className="text-blue-300/70 text-sm">Construction Management System</div>
-          </div>
+        <div className="relative z-10">
+          <BrandMark businessProfile={businessProfile} variant="auth" />
         </div>
         {/* Hero text */}
         <div className="relative space-y-6">
@@ -122,22 +155,14 @@ export function LoginPage({
           </div>
         </div>
         {/* Footer */}
-        <div className="relative text-blue-300/40 text-xs">© 2026 Nirmiti Developers. All rights reserved.</div>
+        <div className="relative text-blue-300/40 text-xs">© 2026 {companyName}. All rights reserved.</div>
       </div>
 
       {/* Right panel — form */}
       <div className="flex-1 flex items-center justify-center bg-[#f0f2f7] px-6 py-12">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3 mb-8">
-            <img src={nirmitiLogo} alt="Nirmiti Developers" className="w-10 h-10 rounded-lg object-contain bg-white p-0.5" />
-            <div>
-              <div className="text-[#0f1a35] text-base font-bold leading-tight">Nirmiti Developers</div>
-              <div className="text-gray-400 text-xs">Construction Management</div>
-            </div>
-          </div>
-
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+            <BrandMark businessProfile={businessProfile} variant="form" />
             <div className="mb-7">
               <h2 className="text-xl font-bold text-[#0f1a35]">Welcome back</h2>
               <p className="text-sm text-gray-400 mt-1">Sign in to your CMS account</p>
@@ -150,7 +175,7 @@ export function LoginPage({
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="e.g. bhagwat@nirmiti.in"
+                  placeholder="e.g. admin01@sankalpenterprises.info"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                 />
               </div>
@@ -179,6 +204,12 @@ export function LoginPage({
                 <p className="text-xs text-red-500 font-medium">{error}</p>
               )}
 
+              {registeredSuccess && (
+                <p className="text-xs text-green-600 font-medium bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                  Registration successful. Please sign in.
+                </p>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -190,6 +221,14 @@ export function LoginPage({
                   <><span>Sign In</span><ArrowRight size={14} /></>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={onGoRegister}
+                className="w-full border border-gray-200 text-sm font-semibold text-[#0f1a35] py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Create account
+              </button>
             </form>
           </div>
         </div>
@@ -199,11 +238,13 @@ export function LoginPage({
 }
 
 export function SetupShell({
+  businessProfile,
   projects,
   onCreate,
   onDelete,
   onEnterDashboard,
 }: {
+  businessProfile?: Partial<BusinessProfileData> | null;
   projects: ProjectData[];
   onCreate: (p: ProjectData) => void;
   onDelete?: (project: ProjectData) => Promise<boolean>;
@@ -233,39 +274,28 @@ export function SetupShell({
         </div>
       )}
       {/* Top bar */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-white/60 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <img src={nirmitiLogo} alt="Nirmiti Developers" className="w-9 h-9 rounded-lg object-contain bg-white border border-gray-100 p-0.5" />
-          <div>
-            <div className="text-sm font-bold text-[#0f1a35] leading-tight">Nirmiti Developers</div>
-            <div className="text-[10px] text-gray-400">Construction Management System</div>
-          </div>
-        </div>
-        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">Project Setup</span>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/60 bg-white/80 px-8 py-4 backdrop-blur-md">
+        <BrandMark businessProfile={businessProfile} variant="compact" />
+        <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">Project Setup</span>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 pt-8 pb-16">
+      <div className="mx-auto max-w-5xl px-6 pt-8 pb-16">
 
         {/* Intro */}
-        <div className="bg-white/75 backdrop-blur-md border border-white/60 rounded-2xl p-5 mb-6 shadow-sm">
-        <div className="flex items-start justify-between">
+        <div className="mb-6 rounded-2xl border border-white/60 bg-white/75 p-5 shadow-sm backdrop-blur-md">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-[#0f1a35]">Projects & Sites</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Add your projects and configure buildings, wings, and units.</p>
+            <p className="mt-0.5 text-sm text-gray-400">Add your projects and configure buildings, wings, and units.</p>
           </div>
           <div className="flex items-center gap-2">
             {onEnterDashboard && projects.length > 0 && (
-              <button
-                onClick={onEnterDashboard}
-                className="flex items-center gap-2 bg-[#0f1a35] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#1a2847] transition-colors"
-              >
-                Go to Dashboard <ArrowRight size={14} />
-              </button>
+              <GradientDashboardButton onClick={onEnterDashboard} />
             )}
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 <Plus size={14} /> Add Project / Site
               </button>
@@ -276,7 +306,7 @@ export function SetupShell({
 
         {/* Saved project cards */}
         {projects.length > 0 && (
-          <div className="space-y-3 mb-6">
+          <div className="mb-6 space-y-3">
             {projects.map(p => (
               <ProjectDetailCard
                 key={p.id}
@@ -290,11 +320,11 @@ export function SetupShell({
 
         {/* Add Project Form */}
         {showForm && (
-          <div className="bg-white/75 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/60 bg-white/50 backdrop-blur-sm">
+          <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/75 shadow-sm backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-white/60 bg-white/50 px-6 py-4 backdrop-blur-sm">
               <p className="text-sm font-semibold text-[#0f1a35]">New Project / Site</p>
               {projects.length > 0 && (
-                <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
+                <button onClick={() => setShowForm(false)} className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-200">
                   <X size={15} />
                 </button>
               )}
@@ -305,12 +335,12 @@ export function SetupShell({
 
         {/* Empty state */}
         {!showForm && projects.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
               <Building2 size={22} className="text-blue-400" />
             </div>
             <p className="text-sm font-semibold text-gray-600">No projects yet</p>
-            <p className="text-xs text-gray-400 mt-1">Click "Add Project / Site" to get started.</p>
+            <p className="mt-1 text-xs text-gray-400">Click &quot;Add Project / Site&quot; to get started.</p>
           </div>
         )}
       </div>
@@ -325,10 +355,19 @@ const PATH_TO_PAGE_KEY: Record<string, string> = {
   "/sales": "sales",
   "/received-payment": "received-payment",
   "/payment-slabs": "payment-slabs",
+  "/messenger": "messenger",
   "/inventory": "inventory",
   "/shareholder": "shareholder",
   "/projects": "projects",
   "/settings": "settings",
+  "/settings/profile": "settings-profile",
+  "/settings/business": "settings-business",
+  "/settings/sales": "settings-sales",
+  "/settings/sales/invoice-template": "settings-invoice-template",
+  "/settings/sales/message-templates": "settings-message-templates",
+  "/settings/inventory": "settings",
+  "/settings/customers": "settings",
+  "/sales/invoice": "sales-invoice",
 };
 
 export function AppLayout({
@@ -341,14 +380,20 @@ export function AppLayout({
   onSiteChange: (s: string) => void;
 }) {
   const { pathname } = useLocation();
-  const pageKey = PATH_TO_PAGE_KEY[pathname] ?? "dashboard";
+  const pageKey =
+    PATH_TO_PAGE_KEY[pathname] ??
+    (pathname.startsWith("/sales/invoice/") ? "sales-invoice" : "dashboard");
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', sans-serif", background: "#f0f2f7" }}>
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <TopBar page={pageKey} projects={projects} selectedSite={selectedSite} onSiteChange={onSiteChange} />
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#e8ecf4] via-[#f0f2f7] to-[#dce4f0]">
+    <div className="flex h-screen overflow-hidden print:block" style={{ fontFamily: "'Inter', sans-serif", background: "#f0f2f7" }}>
+      <div className="print:hidden h-full shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:w-full print:overflow-visible">
+        <div className="print:hidden shrink-0">
+          <TopBar page={pageKey} projects={projects} selectedSite={selectedSite} onSiteChange={onSiteChange} />
+        </div>
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#e8ecf4] via-[#f0f2f7] to-[#dce4f0] print:overflow-visible print:bg-white">
           <Outlet />
         </main>
       </div>

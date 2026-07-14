@@ -1,0 +1,56 @@
+@import "../ui/motionShine.css";
+
+/* Aqua — premium luxury surface with off-white typography */
+
+.dashboard-master-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(145deg, #084548 0%, #0a5c60 42%, #087378 100%);
+  box-shadow:
+    0 4px 24px rgba(8, 69, 72, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dashboard-master-card .motion-shine-blob--a {
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.3) 0%, transparent 68%);
+  opacity: 0.72;
+}
+
+.dashboard-master-card .motion-shine-blob--b {
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.24) 0%, transparent 70%);
+  opacity: 0.66;
+}
+
+.dashboard-master-card .motion-shine-blob--c {
+  background: radial-gradient(circle, rgba(94, 234, 212, 0.2) 0%, transparent 65%);
+  opacity: 0.58;
+}
+
+.dashboard-master-card .motion-shine-noise {
+  opacity: 0.04;
+}
+
+.dashboard-master-card .master-card-eyebrow {
+  color: rgba(245, 240, 232, 0.58);
+}
+
+.dashboard-master-card .master-card-title {
+  color: #f5f0e8;
+}
+
+.dashboard-master-card .master-card-body {
+  color: rgba(245, 240, 232, 0.8);
+}
+
+.dashboard-master-card .master-card-stat {
+  color: #f5f0e8;
+}
+
+.dashboard-master-card .master-card-label {
+  color: rgba(245, 240, 232, 0.52);
+}
+
+.dashboard-master-card .master-card-icon {
+  color: #7dd3c0;
+}

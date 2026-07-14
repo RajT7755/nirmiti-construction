@@ -1,0 +1,255 @@
+================================================================================
+NIRMITI CRM v4 — HOSTINGER VPS DEPLOYMENT DISCUSSION
+================================================================================
+Project: Nirmiti Construction CMS
+Repo:   github.com/RajT7755/nirmiti-construction (branch: version4)
+Stack:  React/Vite frontend + Electron (desktop) + Node/Express API + MySQL
+Date:   July 2026
+
+Reference: https://www.hostinger.com/tutorials/what-is-vps-hosting/
+
+
+================================================================================
+1. WHAT IS VPS HOSTING? (Hostinger summary)
+================================================================================
+
+A VPS (Virtual Private Server) is an isolated virtual machine on a physical
+server. You get:
+
+  - Dedicated resources (vCPU, RAM, storage) — not shared like cheap hosting
+  - Your own operating system (e.g. Ubuntu 22.04)
+  - Root access — install any software you need
+  - Self-managed — you handle security, updates, firewall, SSL
+
+Hostinger says VPS is ideal for:
+  - Custom frameworks (Node, Django, Rails, etc.)
+  - Automation / always-on services
+  - Containerization (Docker)
+  - Apps that need full control
+
+It is NOT ideal if you want zero server management (use shared/cloud instead).
+
+
+================================================================================
+2. HOSTINGER OPTIONS COMPARED (your two choices)
+================================================================================
+
+CLOUD STARTUP
+  - 4 CPU cores, 4 GB RAM, 100 GB NVMe
+  - 100 PHP workers, 10 Web Apps
+  - Managed, PHP/WordPress oriented
+  - Less root control (ports, PM2, Nginx, MySQL tuning)
+  - Verdict: NOT the right fit for Node + MySQL custom API
+
+VPS KVM 1 (RECOMMENDED)
+  - 1 vCPU, 4 GB RAM, 50 GB NVMe, 4 TB bandwidth
+  - Full root access, choose Ubuntu 22.04 at setup
+  - You install Node, MySQL, Nginx, PM2 yourself
+  - Verdict: CORRECT choice for Express API + MySQL + Electron clients
+
+Why VPS wins for Nirmiti:
+  - Your app is a custom Node/Express framework, not PHP
+  - API must run 24/7 as a long-lived process (PM2)
+  - MySQL should stay on localhost only (not public)
+  - 4 GB RAM is the practical minimum for MySQL + Node on 1 vCPU
+
+
+================================================================================
+3. WHAT RUNS WHERE
+================================================================================
+
+OFFICE PC (each staff machine)
+  - Electron app (desktop window)
+  - React UI bundled inside Electron (dist/ build)
+  - Calls API over HTTPS — never talks to MySQL directly
+
+HOSTINGER VPS (one central server, always on)
+  - Ubuntu 22.04
+  - Nginx (HTTPS :443) — public face, SSL termination
+  - Node/Express API (:3001) — internal, proxied by Nginx
+  - MySQL (:3306 localhost only) — database, NOT exposed to internet
+
+OPTIONAL (browser users, no Electron)
+  - Static React build served by Nginx at crm.yourdomain.com
+
+
+================================================================================
+4. ARCHITECTURE DIAGRAM
+================================================================================
+
+Internet
+   |
+   v
+Hostinger VPS (4 GB plan)
+├── Ubuntu 22.04
+├── Nginx (HTTPS :443)          <- public face
+├── Node/Express (:3001)        <- your API (internal)
+├── MySQL (:3306 localhost)     <- database (not public)
+└── optional: static React build for browser users
+
+Office PC
+└── Electron app --> HTTPS --> api.yourdomain.com --> Nginx --> Node --> MySQL
+
+
+End-to-end flow:
+  1. Staff opens Electron app on their PC
+  2. React UI loads (local dist/ or remote URL)
+  3. App calls VITE_API_URL (https://api.yourdomain.com)
+  4. Nginx receives HTTPS, proxies to Node on port 3001
+  5. Express reads/writes MySQL on localhost
+  6. JSON response returns to Electron UI
+
+
+================================================================================
+5. VPS SETUP CHECKLIST (step by step)
+================================================================================
+
+PHASE 1 — PROVISION VPS
+  [ ] Order Hostinger VPS KVM 1 (4 GB RAM)
+  [ ] Select Ubuntu 22.04 at setup (no control panel needed)
+  [ ] Note VPS IP and root password from hPanel
+  [ ] SSH in: ssh root@YOUR_VPS_IP
+
+PHASE 2 — SECURE SERVER
+  [ ] Firewall: allow only ports 22 (SSH), 80 (HTTP), 443 (HTTPS)
+  [ ] Do NOT expose MySQL port 3306 to the internet
+  [ ] Create non-root deploy user with sudo
+  [ ] Optional: install fail2ban for SSH protection
+  [ ] Keep Ubuntu updated (apt update && apt upgrade)
+
+PHASE 3 — INSTALL SOFTWARE
+  [ ] Node.js 20 LTS
+  [ ] MySQL 8
+  [ ] Nginx (reverse proxy)
+  [ ] PM2 (keep API alive across reboots)
+  [ ] Certbot (Let's Encrypt SSL)
+
+PHASE 4 — DATABASE
+  [ ] Create database: nirmiti_cms
+  [ ] Create user: nirmiti@localhost with strong password
+  [ ] Grant privileges on nirmiti_cms.*
+  [ ] Run schema migrations from API spec
+
+PHASE 5 — DEPLOY API
+  [ ] Implement Express backend per docs/BACKEND_API_SPEC.md
+  [ ] Clone/upload to /var/www/nirmiti-api
+  [ ] Production .env:
+        PORT=3001
+        CORS_ORIGIN=https://api.yourdomain.com
+        DB_HOST=localhost
+        DB_USER=nirmiti
+        DB_PASSWORD=...
+        DB_NAME=nirmiti_cms
+  [ ] pm2 start dist/index.js --name nirmiti-api
+  [ ] pm2 startup && pm2 save
+
+PHASE 6 — DNS AND SSL
+  [ ] A record: api.yourdomain.com -> VPS IP (Hostinger DNS)
+  [ ] Optional A record: crm.yourdomain.com -> VPS IP
+  [ ] certbot --nginx -d api.yourdomain.com
+  [ ] Nginx proxy_pass http://127.0.0.1:3001
+
+PHASE 7 — FRONTEND BUILD
+  [ ] VITE_API_URL=https://api.yourdomain.com
+  [ ] VITE_USE_API=true
+  [ ] npm run build
+  [ ] Bundle dist/ into Electron OR deploy to Nginx for browser access
+
+PHASE 8 — ELECTRON DESKTOP APP
+  [ ] Add electron/main.js (BrowserWindow loads dist/index.html)
+  [ ] Add electron-builder for .dmg (Mac) / .exe (Windows)
+  [ ] Build with production VITE_* env vars baked in
+  [ ] Distribute installer to office staff PCs
+  [ ] Electron NEVER connects to MySQL — only HTTPS to API
+
+
+================================================================================
+6. ENVIRONMENT VARIABLES
+================================================================================
+
+DEVELOPMENT (local)
+  Frontend .env:
+    VITE_API_URL=http://localhost:3001
+    VITE_USE_API=true
+
+  Server .env:
+    PORT=3001
+    CORS_ORIGIN=http://localhost:5173
+
+PRODUCTION (VPS + Electron)
+  Frontend build:
+    VITE_API_URL=https://api.yourdomain.com
+    VITE_USE_API=true
+
+  Server .env on VPS:
+    PORT=3001
+    CORS_ORIGIN=https://api.yourdomain.com
+    DB_HOST=localhost
+    DB_USER=nirmiti
+    DB_PASSWORD=<strong_password>
+    DB_NAME=nirmiti_cms
+
+
+================================================================================
+7. SECURITY NOTES (Hostinger: "security responsibility")
+================================================================================
+
+Because VPS is self-managed, YOU are responsible for:
+
+  - Firewall rules (UFW: 22, 80, 443 only)
+  - SSL/TLS certificates (Certbot / Let's Encrypt)
+  - OS and package updates
+  - MySQL not publicly accessible
+  - Strong database passwords
+  - Optional: fail2ban, non-root SSH user
+
+Customer and payment data in the CRM makes this especially important.
+
+
+================================================================================
+8. WHAT IS DONE vs NOT DONE
+================================================================================
+
+DONE (frontend, version4 branch):
+  - React/Vite UI with full CRM features
+  - API client layer (src/lib/api/)
+  - VITE_USE_API toggle for local vs API mode
+  - Full backend API spec: docs/BACKEND_API_SPEC.md
+  - Sales, payments, invoices, export features wired to API contracts
+
+NOT DONE (requires this deployment plan):
+  - Express + MySQL backend implementation
+  - Electron wrapper (main.js, electron-builder)
+  - Hostinger VPS provisioning and production deploy
+  - Production DNS / SSL / CORS / Nginx configuration
+
+
+================================================================================
+9. VERIFICATION CHECKLIST (after deploy)
+================================================================================
+
+  [ ] curl https://api.yourdomain.com/api/health returns OK
+  [ ] Electron app on office PC loads projects and customers from API
+  [ ] MySQL port 3306 NOT reachable from internet
+  [ ] PM2 restarts API after server reboot (sudo reboot test)
+  [ ] npm run build passes with production VITE_* vars
+  [ ] Payment create/edit flows work end-to-end through API
+
+
+================================================================================
+10. HONEST RECOMMENDATION SUMMARY
+================================================================================
+
+  USE:     Hostinger VPS KVM 1 (4 GB RAM, Ubuntu 22.04)
+  SKIP:    Cloud Startup (PHP workers, managed web apps)
+  DESKTOP: Electron on office PCs only
+  SERVER:  Node API + MySQL on VPS only
+  DOMAIN:  api.yourdomain.com (A record -> VPS IP)
+  SSL:     Let's Encrypt via Certbot on Nginx
+
+4 GB RAM on 1 vCPU is fine for a small team (roughly 5-15 concurrent users).
+Monitor CPU and RAM; upgrade VPS plan if MySQL or API gets slow under load.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

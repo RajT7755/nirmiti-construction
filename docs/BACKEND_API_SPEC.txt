@@ -4,8 +4,8 @@
 
 | Item | Value |
 |------|-------|
-| Repo | [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms) |
-| Branch | `version4` (frontend + this spec) |
+| Repo | [github.com/RajT7755/nirmiti-construction](https://github.com/RajT7755/nirmiti-construction) |
+| Branch | `version4` (frontend + this spec — `main` is client demo only) |
 | Base URL | `http://localhost:3001` |
 | Frontend port | `http://localhost:5173` |
 | Auth | **Not required** — login page is client-side demo only. No `/api/login` route. |
@@ -56,9 +56,11 @@ Each file in `src/lib/api/` defines the exact URL, HTTP method, and TypeScript r
 | `src/lib/api/sales/sales.ts` | Sales summary |
 | `src/lib/api/sales/paymentSlabs.ts` | Payment slabs |
 | `src/lib/api/sales/receivedPayments.ts` | Received payments |
+| `src/lib/api/sales/invoices.ts` | Invoices (proxies external provider) |
 | `src/lib/api/sales/paymentAllocation.ts` | Payment allocation |
 | `src/lib/api/sales/paymentLedger.ts` | Per-customer ledger |
 | `src/lib/api/sales/export.ts` | Received payments CSV export |
+| `src/lib/api/sales/paymentLogExport.ts` | Payment log Excel export (proxies external provider) |
 | `src/lib/api/whatsapp/whatsapp.ts` | Single WhatsApp message |
 | `src/lib/api/whatsapp/whatsappBulk.ts` | Bulk WhatsApp |
 | `src/lib/api/inventory/inventory.ts` | Inventory (placeholder) |
@@ -69,7 +71,7 @@ Each file in `src/lib/api/` defines the exact URL, HTTP method, and TypeScript r
 
 | File | Types |
 |------|-------|
-| `src/lib/types.ts` | `ProjectData`, `BuildingConfig`, `WingConfig`, `SlabEntry`, `ReceivedPayment`, `DashboardSummary`, `Customer` |
+| `src/lib/types.ts` | `ProjectData`, `BuildingConfig`, `WingConfig`, `SlabEntry`, `ReceivedPayment`, `Invoice`, `DashboardSummary`, `Customer` |
 | `src/lib/customers/customerDetailTypes.ts` | `CustomerDetailProfile`, `TemporaryBookingRecord`, `InactiveCustomerRecord`, `CategoryRow`, `SlabLedgerRow` |
 | `src/lib/customers/buildCustomerProfile.ts` | `AddCustomerFormInput` |
 | `src/lib/api/sales/paymentAllocation.ts` | `AllocatePaymentRequest`, `AllocatePaymentResult` |
@@ -128,7 +130,9 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 - [ ] `PUT /api/payment-slabs`
 - [ ] `GET /api/received-payments`
 - [ ] `POST /api/received-payments`
+- [ ] `PATCH /api/received-payments/:id`
 - [ ] `GET /api/received-payments/export`
+- [ ] `GET /api/received-payments/export/excel`
 - [ ] `GET /api/customers/:id/payment-categories`
 - [ ] `GET /api/customers/:id/payment-categories/:category/due`
 - [ ] `POST /api/payments/allocate`
@@ -144,7 +148,25 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 - [ ] `GET /api/whatsapp/bulk/:batchId`
 - [ ] `POST /api/whatsapp/bulk/:batchId/cancel`
 
-### Phase 5 — Placeholders (low priority)
+### Phase 5 — Auth & Settings (v4)
+
+- [ ] `POST /api/auth/register`
+- [ ] `GET /api/auth/users/:userId`
+- [ ] `POST /api/auth/login`
+- [ ] `GET /api/settings/profile`
+- [ ] `PATCH /api/settings/profile`
+- [ ] `GET /api/settings/business`
+- [ ] `PATCH /api/settings/business`
+- [ ] `GET /api/settings/inventory`
+- [ ] `PATCH /api/settings/inventory`
+- [ ] `GET /api/settings/customers`
+- [ ] `PATCH /api/settings/customers`
+- [ ] `GET /api/settings/sales`
+- [ ] `PATCH /api/settings/sales`
+- [ ] `GET /api/settings/sales/invoice-template`
+- [ ] `PATCH /api/settings/sales/invoice-template`
+
+### Phase 6 — Placeholders (low priority)
 
 - [ ] `GET /api/inventory`
 - [ ] `GET /api/shareholders`
@@ -693,9 +715,92 @@ Replace entire slab list (used when frontend edits slabs in bulk).
 
 **Response 201:** `ReceivedPayment`
 
+#### `PATCH /api/received-payments/:id`
+
+**Request body:** `Partial<Pick<ReceivedPayment, "received" | "method" | "date" | "status">>`
+
+**Response 200:** `ReceivedPayment`
+
+**Side effect:** If the payment has an **active** invoice (`lifecycle: "active"`), the server must mark it `lifecycle: "superseded"` and set `supersededAt` (ISO date). This allows the client to re-issue a new invoice via `POST /api/invoices`.
+
 #### `GET /api/received-payments/export`
 
 **Response 200:** CSV file
+
+#### `GET /api/received-payments/export/excel`
+
+**Response 200:** `.xlsx` file (Payment Log workbook)
+
+**Server `.env` (proxies external export service):**
+
+```env
+PAYMENT_EXPORT_SERVICE_URL=https://your-export-provider.example
+PAYMENT_EXPORT_API_KEY=your-secret-key
+```
+
+**Spec file:** `src/lib/api/sales/paymentLogExport.ts`
+
+---
+
+### Invoices
+
+**Server `.env` (proxies external invoice service):**
+
+```env
+INVOICE_SERVICE_URL=https://your-invoice-provider.example
+INVOICE_API_KEY=your-secret-key
+```
+
+**Spec file:** `src/lib/api/sales/invoices.ts`
+
+#### `GET /api/invoices`
+
+**Response 200:** `Invoice[]`
+
+```json
+[
+  {
+    "id": "INV-1700000000000",
+    "invoiceNo": "INV-2026-0001",
+    "customerName": "Rajesh Kumar",
+    "flat": "A-204",
+    "amount": 514500,
+    "paymentId": "RP-001",
+    "date": "2026-07-01",
+    "status": "issued",
+    "lifecycle": "active",
+    "revision": 1
+  }
+]
+```
+
+#### `POST /api/invoices`
+
+**Request body:**
+
+```json
+{
+  "paymentId": "RP-001",
+  "customerName": "Rajesh Kumar",
+  "flat": "A-204",
+  "amount": 514500,
+  "date": "2026-07-01",
+  "customerId": "SHB2B204"
+}
+```
+
+**Response 201:** `Invoice`
+
+**Re-issue rules:**
+- Reject (`409`) if an **active** invoice already exists for `paymentId`.
+- Allow re-issue when prior invoices for that payment are `superseded` or `void`.
+- Set `revision` to `max(existing revisions for paymentId) + 1`.
+- Set `supersedesInvoiceId` to the most recently superseded invoice for that payment (if any).
+- Assign a new unique `invoiceNo`.
+
+#### `GET /api/invoices/:id/pdf`
+
+**Response 200:** PDF blob (optional download)
 
 ---
 
@@ -913,6 +1018,28 @@ WHATSAPP_API_VERSION=v21.0
 ```json
 {}
 ```
+
+---
+
+### Auth & Settings (v4 frontend)
+
+#### `POST /api/auth/register`
+
+**Body:** `{ userId, fullName, email, password }`
+
+#### `POST /api/auth/login`
+
+**Body:** `{ loginId, password }` — `loginId` is userId or email.
+
+#### `GET/PATCH /api/settings/business`
+
+Business letterhead for sidebar, login, and **invoice PDF generation**.  
+`POST /api/invoices` and `GET /api/invoices/:id/pdf` must read this profile (logo URL, company name, GSTIN, bank details).
+
+#### `GET/PATCH /api/settings/sales/invoice-template`
+
+**Fields:** `invoicePrefix`, `termsAndConditions`, `footerNote`, `showBankDetails`  
+Used by frontend invoice preview at `/sales/invoice/:invoiceId`.
 
 ---
 

@@ -1,6 +1,23 @@
+import {
+  createDefaultBusinessProfile,
+  createDefaultModuleSettings,
+  resolveSalesSettings,
+} from "@/lib/settings/defaultSettings";
+import { normalizeInvoices } from "@/lib/sales/invoiceLog";
 import { STORE_KEY } from "./storeKeys";
 import type { AppStore } from "./storeTypes";
 import { createSeedStore } from "./seedStore";
+
+function withSettingsDefaults(parsed: AppStore): AppStore {
+  return {
+    ...parsed,
+    invoices: normalizeInvoices(parsed.invoices ?? []),
+    businessProfile: parsed.businessProfile ?? createDefaultBusinessProfile(),
+    salesSettings: resolveSalesSettings(parsed.salesSettings),
+    inventorySettings: parsed.inventorySettings ?? createDefaultModuleSettings(),
+    customerSettings: parsed.customerSettings ?? createDefaultModuleSettings(),
+  };
+}
 
 export function loadStore(): AppStore {
   try {
@@ -16,7 +33,7 @@ export function loadStore(): AppStore {
       saveStore(seed);
       return seed;
     }
-    return parsed;
+    return withSettingsDefaults(parsed);
   } catch {
     const seed = createSeedStore();
     saveStore(seed);

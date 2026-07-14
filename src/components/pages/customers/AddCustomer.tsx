@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RefreshCw, AlertCircle, ArrowLeft } from "lucide-react";
 import { generateCustomerId } from "@/lib/customers/generateCustomerId";
 import type { AddCustomerFormInput } from "@/lib/customers/buildCustomerProfile";
@@ -38,9 +38,9 @@ export function AddCustomer({
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const projectNames = projects.length > 0
     ? projects.map(p => p.name)
-    : ["Sunrise Heights", "Green Valley", "Blue Horizon"];
+    : ["Sunrise Heights", "Green Valley", "Blue Horizo"];
 
-  // Grid navigation
+  // book flat Grid navigation
   const [selProject, setSelProject]     = useState(projectNames[0]);
   const [selBuildingIdx, setSelBuildingIdx] = useState(0);
   const [selWingIdx, setSelWingIdx]     = useState(0);
@@ -88,6 +88,7 @@ export function AddCustomer({
   // Notes
   const [notes, setNotes]         = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
+  const flatNoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!initialData) return;
@@ -350,8 +351,14 @@ export function AddCustomer({
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Shop / Flat No.</label>
-                <input type="text" value={flatNo} onChange={e => setFlatNo(e.target.value)} placeholder="e.g. A-204"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <input
+                  ref={flatNoInputRef}
+                  type="text"
+                  value={flatNo}
+                  onChange={e => setFlatNo(e.target.value)}
+                  placeholder="e.g. A-204"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
               </div>
 
               {/* Row 4 — Area + Floor Name */}
@@ -701,6 +708,18 @@ export function AddCustomer({
               setSelBuildingIdx(nav.buildingIdx);
               setSelWingIdx(nav.wingIdx);
               setSelFloor(nav.floor);
+            }}
+            onBookUnit={(unit) => {
+              setFlatNo(unit.number);
+              setFloorName(`Floor ${unit.floor}`);
+              if (["1BHK", "2BHK", "3BHK", "4BHK", "Shop"].includes(unit.type)) {
+                setFlatType(unit.type);
+              }
+              setSelFloor(unit.floor);
+              requestAnimationFrame(() => {
+                flatNoInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                flatNoInputRef.current?.focus();
+              });
             }}
             className="sticky top-6"
           />

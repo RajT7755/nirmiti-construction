@@ -1,5 +1,11 @@
 import type { CustomerDetailProfile, InactiveCustomerRecord } from "@/lib/customers/customerDetailTypes";
-import type { ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
+import type {
+  BusinessProfileData,
+  ModuleSettingsData,
+  ProfileSettingsData,
+  SalesSettingsData,
+} from "@/lib/settings/settingsTypes";
+import type { Invoice, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
 import type { STORE_VERSION } from "./storeKeys";
 
 export interface WhatsAppOutboxEntry {
@@ -18,6 +24,13 @@ export interface AppStore {
   releasedTempIds: string[];
   slabs: SlabEntry[];
   receivedPayments: ReceivedPayment[];
+  invoices: Invoice[];
   projects: ProjectData[];
   whatsappOutbox: WhatsAppOutboxEntry[];
+  businessProfile?: BusinessProfileData;
+  profileSettings?: ProfileSettingsData;
+  salesSettings?: SalesSettingsData;
+  inventorySettings?: ModuleSettingsData;
+  customerSettings?: ModuleSettingsData;
+  activeUserId?: string;
 }

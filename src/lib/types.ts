@@ -7,6 +7,7 @@ export type Page =
   | "sales"
   | "received-payment"
   | "payment-slabs"
+  | "messenger"
   | "inventory"
   | "shareholder"
   | "projects"
@@ -113,6 +114,24 @@ export interface ReceivedPayment {
   method: string;
   date: string;
   status: string;
+}
+
+export type InvoiceLifecycle = "active" | "superseded" | "void";
+
+export interface Invoice {
+  id: string;
+  invoiceNo: string;
+  customerName: string;
+  customerId?: string;
+  flat: string;
+  amount: number;
+  paymentId: string;
+  date: string;
+  status: "draft" | "issued" | "sent";
+  lifecycle: InvoiceLifecycle;
+  revision: number;
+  supersedesInvoiceId?: string;
+  supersededAt?: string;
 }
 
 export interface DashboardSummary {

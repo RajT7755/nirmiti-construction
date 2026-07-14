@@ -14,14 +14,27 @@ export function isLoggedIn(): boolean {
   }
 }
 
-export function setLoggedIn(credentials?: SessionCredentials): void {
+const ACTIVE_USER_KEY = "nirmiti_active_user_id";
+
+export function setLoggedIn(credentials?: SessionCredentials, userId?: string): void {
   try {
     sessionStorage.setItem(SESSION_KEY, "true");
     if (credentials?.username && credentials.password) {
       sessionStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
     }
+    if (userId) {
+      sessionStorage.setItem(ACTIVE_USER_KEY, userId);
+    }
   } catch {
     /* ignore */
+  }
+}
+
+export function getActiveUserId(): string | null {
+  try {
+    return sessionStorage.getItem(ACTIVE_USER_KEY);
+  } catch {
+    return null;
   }
 }
 
@@ -50,6 +63,7 @@ export function clearSession(): void {
   try {
     sessionStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(CREDENTIALS_KEY);
+    sessionStorage.removeItem(ACTIVE_USER_KEY);
   } catch {
     /* ignore */
   }
