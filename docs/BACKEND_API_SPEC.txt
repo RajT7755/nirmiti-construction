@@ -4,8 +4,8 @@
 
 | Item | Value |
 |------|-------|
-| Repo | [github.com/RajT7755/nirmiti-construction](https://github.com/RajT7755/nirmiti-construction) |
-| Branch | `version4` (frontend + this spec — `main` is client demo only) |
+| Repo | [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms) |
+| Branch | `version4` (frontend + this spec) |
 | Base URL | `http://localhost:3001` |
 | Frontend port | `http://localhost:5173` |
 | Auth | **Not required** — login page is client-side demo only. No `/api/login` route. |

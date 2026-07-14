@@ -4,9 +4,8 @@
 
 | Item | Value |
 |------|-------|
-| **Repo** | [github.com/RajT7755/nirmiti-construction](https://github.com/RajT7755/nirmiti-construction) |
-| **Branch** | **`version4`** — use this for all development |
-| **`main`** | Separate client demo for GitHub Pages — do not use for backend work |
+| **Repo** | [github.com/RajT7755/construction_cms](https://github.com/RajT7755/construction_cms) |
+| **Branch** | **`version4`** — frontend + backend API spec |
 
 > **Backend developers:** Start with **[docs/BACKEND_API_SPEC.txt](docs/BACKEND_API_SPEC.txt)** — endpoints, JSON bodies, and phased implementation checklist.
 
@@ -15,8 +14,8 @@
 ## Quick start (frontend)
 
 ```bash
-git clone https://github.com/RajT7755/nirmiti-construction.git
-cd nirmiti-construction
+git clone https://github.com/RajT7755/construction_cms.git
+cd construction_cms
 git checkout version4
 
 cp .env.example .env

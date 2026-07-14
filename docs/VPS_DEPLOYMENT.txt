@@ -2,7 +2,7 @@
 NIRMITI CRM v4 — HOSTINGER VPS DEPLOYMENT DISCUSSION
 ================================================================================
 Project: Nirmiti Construction CMS
-Repo:   github.com/RajT7755/nirmiti-construction (branch: version4)
+Repo:   github.com/RajT7755/construction_cms (branch: version4)
 Stack:  React/Vite frontend + Electron (desktop) + Node/Express API + MySQL
 Date:   July 2026
 
