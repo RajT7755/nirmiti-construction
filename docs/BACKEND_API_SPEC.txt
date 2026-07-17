@@ -63,9 +63,28 @@ Each file in `src/lib/api/` defines the exact URL, HTTP method, and TypeScript r
 | `src/lib/api/sales/paymentLogExport.ts` | Payment log Excel export (proxies external provider) |
 | `src/lib/api/whatsapp/whatsapp.ts` | Single WhatsApp message |
 | `src/lib/api/whatsapp/whatsappBulk.ts` | Bulk WhatsApp |
-| `src/lib/api/inventory/inventory.ts` | Inventory (placeholder) |
+| `src/lib/api/client.ts` | Base fetch + optional `scope: "default" \| "inventory"` for API keys |
+| `src/lib/api/inventory/inventory.ts` | Legacy list `GET /api/inventory` |
+| `src/lib/api/inventory/materials.ts` | Materials list |
+| `src/lib/api/inventory/suppliers.ts` | Suppliers list |
+| `src/lib/api/inventory/contractors.ts` | Contractors list |
+| `src/lib/api/inventory/purchaseOrders.ts` | Purchase orders list |
+| `src/lib/api/inventory/workOrders.ts` | Work orders list |
+| `src/lib/api/inventory/supplierPayments.ts` | Supplier payments + summary |
+| `src/lib/api/inventory/contractorPayments.ts` | Contractor payments + summary |
+| `src/lib/api/inventory/purchaseOrderPayments.ts` | PO payment get/patch |
+| `src/lib/api/inventory/workOrderPayments.ts` | WO payment get/patch |
+| `src/lib/api/inventory/paymentLedger.ts` | Inventory payment ledger (`inventoryPaymentLedgerApi`) |
+| `src/lib/api/settings/inventorySettings.ts` | Inventory settings get/patch |
 | `src/lib/api/shareholder/shareholder.ts` | Shareholders (placeholder) |
 | `src/lib/api/settings/settings.ts` | Settings (placeholder) |
+
+**Important — do not confuse sales vs inventory payment ledgers:**
+
+| Export | File | URL |
+|--------|------|-----|
+| `paymentLedgerApi` | `src/lib/api/sales/paymentLedger.ts` | `GET /api/customers/:id/payment-ledger` |
+| `inventoryPaymentLedgerApi` | `src/lib/api/inventory/paymentLedger.ts` | `GET /api/inventory/payment-ledger` |
 
 ### Type definition files
 
@@ -75,6 +94,9 @@ Each file in `src/lib/api/` defines the exact URL, HTTP method, and TypeScript r
 | `src/lib/customers/customerDetailTypes.ts` | `CustomerDetailProfile`, `TemporaryBookingRecord`, `InactiveCustomerRecord`, `CategoryRow`, `SlabLedgerRow` |
 | `src/lib/customers/buildCustomerProfile.ts` | `AddCustomerFormInput` |
 | `src/lib/api/sales/paymentAllocation.ts` | `AllocatePaymentRequest`, `AllocatePaymentResult` |
+| `src/lib/inventory/inventoryTypes.ts` | `Material`, `Supplier`, `Contractor`, `PurchaseOrder`, `WorkOrder`, `InventoryKpis` |
+| `src/lib/inventory/paymentLedgerTypes.ts` | `PartyPaymentLine`, `PartyPaymentSummary` |
+| `src/lib/settings/settingsTypes.ts` | `InventorySettingsData` (units, workCategories, ID prefixes) |
 
 ---
 
@@ -148,6 +170,14 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 - [ ] `GET /api/whatsapp/bulk/:batchId`
 - [ ] `POST /api/whatsapp/bulk/:batchId/cancel`
 
+### Phase 4b — Email (separate from WhatsApp)
+
+- [ ] `POST /api/email/send` — bank loan approval / general email  
+  Frontend client: `src/lib/api/email/send.ts` (`emailSendApi`)  
+  Body: `{ fromName, to: [{ email, name? }], subject, body, purpose?, customerId? }`  
+  Server should use Resend / Brevo / SMTP (API keys on server only — not in Vite).  
+  Free options for later: Resend free tier, Brevo free tier, Gmail SMTP for dev only.
+
 ### Phase 5 — Auth & Settings (v4)
 
 - [ ] `POST /api/auth/register`
@@ -166,9 +196,38 @@ Implement **Phase 1 + Phase 2 + Phase 3 (slabs + received-payments)** before the
 - [ ] `GET /api/settings/sales/invoice-template`
 - [ ] `PATCH /api/settings/sales/invoice-template`
 
-### Phase 6 — Placeholders (low priority)
+### Phase 6 — Inventory (frontend contracts ready; UI localStorage when `VITE_USE_API=false`)
 
-- [ ] `GET /api/inventory`
+**List**
+
+- [ ] `GET /api/inventory` (legacy placeholder; may return summary or `[]`)
+- [ ] `GET /api/inventory/materials`
+- [ ] `GET /api/inventory/suppliers`
+- [ ] `GET /api/inventory/contractors`
+- [ ] `GET /api/inventory/purchase-orders`
+- [ ] `GET /api/inventory/work-orders`
+
+**Payments (supplier/contractor payables — not sales customer ledger)**
+
+- [ ] `GET /api/inventory/suppliers/:id/payments`
+- [ ] `GET /api/inventory/suppliers/:id/payment-summary`
+- [ ] `POST /api/inventory/suppliers/:id/payments`
+- [ ] `GET /api/inventory/contractors/:id/payments`
+- [ ] `GET /api/inventory/contractors/:id/payment-summary`
+- [ ] `POST /api/inventory/contractors/:id/payments`
+- [ ] `GET /api/inventory/purchase-orders/:id/payment`
+- [ ] `PATCH /api/inventory/purchase-orders/:id/payment`
+- [ ] `GET /api/inventory/work-orders/:id/payment`
+- [ ] `PATCH /api/inventory/work-orders/:id/payment`
+- [ ] `GET /api/inventory/payment-ledger?partyType=&partyId=`
+
+**Settings (already Phase 5)**
+
+- [ ] `GET /api/settings/inventory`
+- [ ] `PATCH /api/settings/inventory`
+
+### Phase 7 — Other placeholders (low priority)
+
 - [ ] `GET /api/shareholders`
 - [ ] `GET /api/settings`
 
@@ -1001,11 +1060,164 @@ WHATSAPP_API_VERSION=v21.0
 
 ---
 
-### Placeholders
+### Inventory module (v4 frontend)
+
+**Auth / headers:** optional. When set, frontend sends both:
+
+```
+X-API-Key: <key>
+Authorization: Bearer <key>
+```
+
+Key resolution (`src/lib/api/client.ts`):
+
+- Default modules: `VITE_API_KEY`
+- Inventory payment clients (scope `"inventory"`): `VITE_INVENTORY_API_KEY` then `VITE_API_KEY`
+
+**Types:** `src/lib/inventory/inventoryTypes.ts`, `paymentLedgerTypes.ts`
+
+**Impact on pre-inventory systems:** inventory only adds optional AppStore fields and inventory routes. Sales `paymentLedgerApi` (`/api/customers/:id/payment-ledger`) is unchanged. Hydrate should treat inventory settings failures as non-fatal (frontend uses defaults).
 
 #### `GET /api/inventory`
 
-**Response 200:** `[]`
+Legacy placeholder. **Response 200:** `[]` or a summary object. Prefer entity list endpoints below for new work.
+
+#### `GET /api/inventory/materials`
+
+**Response 200:** `Material[]`
+
+```ts
+// Material (inventoryTypes.ts)
+{ id, name, type, workCategories: string[], unit, quantity, reorderLevel, unitCost,
+  currentSupplierId?, currentSupplierName? }
+```
+
+#### `GET /api/inventory/suppliers`
+
+**Response 200:** `Supplier[]`
+
+```ts
+{ id, name, workCategories: string[], phone?, email?, address?, pinCode?,
+  paymentTotal?, paymentRemaining?, status: "active" | "inactive" }
+```
+
+#### `GET /api/inventory/contractors`
+
+**Response 200:** `Contractor[]`
+
+```ts
+{ id, name, workProfile, workCategories: string[], phone?, email?, address?, pinCode?,
+  paymentTotal?, paymentRemaining?, status: "active" | "inactive", trade? }
+```
+
+#### `GET /api/inventory/purchase-orders`
+
+**Response 200:** `PurchaseOrder[]`
+
+```ts
+{ id, supplierId, supplierName, materialId?, materialName, unit, quantity, orderDate,
+  status: "pending" | "received" | "partial", amountTotal?, amountPaid? }
+```
+
+#### `GET /api/inventory/work-orders`
+
+**Response 200:** `WorkOrder[]`
+
+```ts
+{ id, contractorId, contractorName, title, trade?, materialIds?, startDate,
+  status: "open" | "in-progress" | "completed" | "on-hold", amountTotal?, amountPaid? }
+```
+
+#### Supplier payments
+
+| Method | Path | Client |
+|--------|------|--------|
+| `GET` | `/api/inventory/suppliers/:id/payments` | `supplierPaymentsApi.list` |
+| `GET` | `/api/inventory/suppliers/:id/payment-summary` | `supplierPaymentsApi.summary` |
+| `POST` | `/api/inventory/suppliers/:id/payments` | `supplierPaymentsApi.create` |
+
+**Payment line body / response (`PartyPaymentLine`):**
+
+```ts
+{
+  id: string;
+  partyType: "supplier" | "contractor";
+  partyId: string;
+  sourceType: "purchase_order" | "work_order" | "manual";
+  sourceId: string;
+  amountTotal: number;
+  amountPaid: number;
+  note?: string;
+  date: string; // ISO date
+}
+```
+
+**Summary (`PartyPaymentSummary`):**
+
+```ts
+{
+  partyId: string;
+  partyType: "supplier" | "contractor";
+  paymentTotal: number;
+  paymentPaid: number;
+  paymentRemaining: number;
+  lines: PartyPaymentLine[];
+}
+```
+
+Frontend also rolls up from PO `amountTotal` / `amountPaid` locally when offline.
+
+#### Contractor payments
+
+| Method | Path | Client |
+|--------|------|--------|
+| `GET` | `/api/inventory/contractors/:id/payments` | `contractorPaymentsApi.list` |
+| `GET` | `/api/inventory/contractors/:id/payment-summary` | `contractorPaymentsApi.summary` |
+| `POST` | `/api/inventory/contractors/:id/payments` | `contractorPaymentsApi.create` |
+
+Same `PartyPaymentLine` / summary shapes; rollup prefers Work Order amounts.
+
+#### PO / WO payment patch
+
+| Method | Path | Body | Client |
+|--------|------|------|--------|
+| `GET` | `/api/inventory/purchase-orders/:id/payment` | — | `purchaseOrderPaymentsApi.get` |
+| `PATCH` | `/api/inventory/purchase-orders/:id/payment` | `{ amountTotal?, amountPaid? }` | `purchaseOrderPaymentsApi.update` |
+| `GET` | `/api/inventory/work-orders/:id/payment` | — | `workOrderPaymentsApi.get` |
+| `PATCH` | `/api/inventory/work-orders/:id/payment` | `{ amountTotal?, amountPaid? }` | `workOrderPaymentsApi.update` |
+
+Updating PO/WO payment should recompute supplier/contractor `paymentTotal` / `paymentRemaining` (or serve via payment-summary).
+
+#### `GET /api/inventory/payment-ledger`
+
+**Query:** `partyType` (`supplier` \| `contractor`), `partyId` (optional filters)
+
+**Response 200:** `PartyPaymentLine[]`
+
+**Client:** `inventoryPaymentLedgerApi.list` (not sales `paymentLedgerApi`)
+
+#### `GET/PATCH /api/settings/inventory`
+
+**Response / body (`InventorySettingsData`):**
+
+```ts
+{
+  notes: string;
+  enabled: boolean;
+  units: string[];
+  workCategories: string[];
+  supplierIdPrefix: string;
+  supplierIdNext: number;
+  contractorIdPrefix: string;
+  contractorIdNext: number;
+}
+```
+
+**Client:** `inventorySettingsApi.get` / `.update`
+
+---
+
+### Other placeholders
 
 #### `GET /api/shareholders`
 

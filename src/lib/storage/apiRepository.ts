@@ -34,7 +34,9 @@ import {
 } from "@/lib/api";
 import {
   createDefaultBusinessProfile,
+  createDefaultInventorySettings,
   createDefaultModuleSettings,
+  resolveInventorySettings,
   resolveSalesSettings,
 } from "@/lib/settings/defaultSettings";
 import type { CustomerDetailProfile } from "@/lib/customers/customerDetailTypes";
@@ -100,7 +102,7 @@ export async function hydrateFromApi(): Promise<AppStore> {
     invoicesApi.list(),
     businessProfileSettingsApi.get().catch(() => createDefaultBusinessProfile()),
     salesSettingsApi.get().catch(() => resolveSalesSettings()),
-    inventorySettingsApi.get().catch(() => createDefaultModuleSettings()),
+    inventorySettingsApi.get().catch(() => createDefaultInventorySettings()),
     customerSettingsApi.get().catch(() => createDefaultModuleSettings()),
   ]);
 
@@ -120,7 +122,7 @@ export async function hydrateFromApi(): Promise<AppStore> {
     whatsappOutbox: [],
     businessProfile,
     salesSettings: resolveSalesSettings(salesSettings),
-    inventorySettings,
+    inventorySettings: resolveInventorySettings(inventorySettings),
     customerSettings,
   };
 }

@@ -2,13 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { MessageSquare } from "lucide-react";
 import {
+  CUSTOMER_BROADCAST_TEMPLATE_VARIABLES,
   OVERDUE_TEMPLATE_VARIABLES,
+  PO_REQUEST_TEMPLATE_VARIABLES,
   renderWhatsAppTemplate,
   SLAB_TEMPLATE_VARIABLES,
-} from "@/lib/messenger/messageTemplates";
+  WO_REQUEST_TEMPLATE_VARIABLES,
+} from "@/lib/messenger/templates";
 import type { MessengerTemplateSettings } from "@/lib/settings/settingsTypes";
 
-type TemplateTab = "slab-schedule" | "overdue";
+type TemplateTab =
+  | "slab-schedule"
+  | "overdue"
+  | "customers"
+  | "po-request"
+  | "wo-request";
 
 const SLAB_PREVIEW_VARS = {
   owner_name: "Rahul Sharma",
@@ -24,7 +32,47 @@ const OVERDUE_PREVIEW_VARS = {
   due_amount: "₹1,25,000",
   current_slab: "Slab #3 — Flooring",
   project: "Sankalp Heights",
+  company_name: "Sankalp Technologies",
 };
+
+const PO_PREVIEW_VARS = {
+  party_name: "Shree Cement Traders",
+  phone: "+91 98765 43210",
+  company_name: "Sankalp Technologies",
+  request_no: "REQ-000001",
+  material_name: "OPC Cement 53 Grade",
+  quantity: "200",
+  unit: "bags",
+  product_description: "For RCC columns",
+  grand_total: "₹89,680",
+};
+
+const WO_PREVIEW_VARS = {
+  party_name: "Ramesh Plastering Works",
+  phone: "+91 91234 56780",
+  company_name: "Sankalp Technologies",
+  request_no: "WOR-000001",
+  work_profile: "Plastering",
+  description: "Wing A floors 1–3",
+  date_of_issue: "2026-07-14",
+  commitment_date: "2026-07-28",
+};
+
+const CUSTOMER_PREVIEW_VARS = {
+  owner_name: "Rahul Sharma",
+  phone: "9123456780",
+  flat_name: "A-101",
+  project: "Sankalp Heights",
+  company_name: "Sankalp Technologies",
+};
+
+function parseTab(tabParam: string | null): TemplateTab {
+  if (tabParam === "overdue") return "overdue";
+  if (tabParam === "customers") return "customers";
+  if (tabParam === "po-request") return "po-request";
+  if (tabParam === "wo-request") return "wo-request";
+  return "slab-schedule";
+}
 
 export function MessageTemplateSettings({
   templates,
@@ -35,17 +83,14 @@ export function MessageTemplateSettings({
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<TemplateTab>(
-    tabParam === "overdue" ? "overdue" : "slab-schedule"
-  );
+  const [tab, setTab] = useState<TemplateTab>(() => parseTab(tabParam));
   const [form, setForm] = useState(templates);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => setForm(templates), [templates]);
 
   useEffect(() => {
-    if (tabParam === "overdue") setTab("overdue");
-    else if (tabParam === "slab-schedule") setTab("slab-schedule");
+    setTab(parseTab(tabParam));
   }, [tabParam]);
 
   function selectTab(next: TemplateTab) {
@@ -54,14 +99,47 @@ export function MessageTemplateSettings({
   }
 
   const previewText = useMemo(() => {
-    if (tab === "overdue") {
-      return renderWhatsAppTemplate(form.overdue, OVERDUE_PREVIEW_VARS);
-    }
+    if (tab === "overdue") return renderWhatsAppTemplate(form.overdue, OVERDUE_PREVIEW_VARS);
+    if (tab === "customers")
+      return renderWhatsAppTemplate(form.customerBroadcast, CUSTOMER_PREVIEW_VARS);
+    if (tab === "po-request")
+      return renderWhatsAppTemplate(form.poRequest, PO_PREVIEW_VARS);
+    if (tab === "wo-request")
+      return renderWhatsAppTemplate(form.workOrderRequest, WO_PREVIEW_VARS);
     return renderWhatsAppTemplate(form.slabSchedule, SLAB_PREVIEW_VARS);
-  }, [tab, form.overdue, form.slabSchedule]);
+  }, [tab, form]);
 
-  const variables = tab === "overdue" ? OVERDUE_TEMPLATE_VARIABLES : SLAB_TEMPLATE_VARIABLES;
-  const templateValue = tab === "overdue" ? form.overdue : form.slabSchedule;
+  const variables =
+    tab === "overdue"
+      ? OVERDUE_TEMPLATE_VARIABLES
+      : tab === "customers"
+        ? CUSTOMER_BROADCAST_TEMPLATE_VARIABLES
+        : tab === "po-request"
+          ? PO_REQUEST_TEMPLATE_VARIABLES
+          : tab === "wo-request"
+            ? WO_REQUEST_TEMPLATE_VARIABLES
+            : SLAB_TEMPLATE_VARIABLES;
+
+  const templateValue =
+    tab === "overdue"
+      ? form.overdue
+      : tab === "customers"
+        ? form.customerBroadcast
+        : tab === "po-request"
+          ? form.poRequest
+          : tab === "wo-request"
+            ? form.workOrderRequest
+            : form.slabSchedule;
+
+  function setTemplateValue(value: string) {
+    setForm((f) => {
+      if (tab === "overdue") return { ...f, overdue: value };
+      if (tab === "customers") return { ...f, customerBroadcast: value };
+      if (tab === "po-request") return { ...f, poRequest: value };
+      if (tab === "wo-request") return { ...f, workOrderRequest: value };
+      return { ...f, slabSchedule: value };
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,6 +153,14 @@ export function MessageTemplateSettings({
   const inputClass =
     "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white font-mono";
 
+  const tabs: { key: TemplateTab; label: string; active: string }[] = [
+    { key: "slab-schedule", label: "Slab Schedule", active: "border-blue-600 text-blue-600" },
+    { key: "overdue", label: "Overdue", active: "border-orange-500 text-orange-600" },
+    { key: "customers", label: "Customers", active: "border-green-600 text-green-700" },
+    { key: "po-request", label: "PO Request", active: "border-amber-600 text-amber-700" },
+    { key: "wo-request", label: "WO Request", active: "border-teal-600 text-teal-700" },
+  ];
+
   return (
     <div className="space-y-6">
       <form
@@ -85,32 +171,25 @@ export function MessageTemplateSettings({
           <MessageSquare size={18} className="text-green-600" /> Message Templates
         </h3>
         <p className="text-sm text-gray-500">
-          WhatsApp message templates used in Messenger for slab schedules and overdue reminders.
+          Defaults live in <code className="text-xs bg-gray-100 px-1">src/lib/messenger/templates/</code>
+          . Phone: use {"{phone}"} for customers, suppliers, and contractors.
         </p>
 
-        <div className="flex gap-1 border-b border-gray-200">
-          <button
-            type="button"
-            onClick={() => selectTab("slab-schedule")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-              tab === "slab-schedule"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Slab Schedule
-          </button>
-          <button
-            type="button"
-            onClick={() => selectTab("overdue")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-              tab === "overdue"
-                ? "border-orange-500 text-orange-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Overdue
-          </button>
+        <div className="flex flex-wrap gap-1 border-b border-gray-200">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => selectTab(t.key)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                tab === t.key
+                  ? t.active
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         <div>
@@ -118,13 +197,7 @@ export function MessageTemplateSettings({
           <textarea
             className={`${inputClass} min-h-[180px] resize-y`}
             value={templateValue}
-            onChange={(e) =>
-              setForm((f) =>
-                tab === "overdue"
-                  ? { ...f, overdue: e.target.value }
-                  : { ...f, slabSchedule: e.target.value }
-              )
-            }
+            onChange={(e) => setTemplateValue(e.target.value)}
           />
           <p className="text-[10px] text-gray-400 mt-1.5">
             Variables:{" "}

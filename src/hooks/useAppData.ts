@@ -38,20 +38,88 @@ import {
 import { STORE_VERSION } from "@/lib/storage/storeKeys";
 import type { AppStore } from "@/lib/storage/storeTypes";
 import type { Customer, ProjectData, ReceivedPayment, SlabEntry } from "@/lib/types";
+import type {
+  Contractor,
+  ContractorStatus,
+  Material,
+  PurchaseOrder,
+  PurchaseRequest,
+  Supplier,
+  SupplierStatus,
+  WorkMaterialLine,
+  WorkOrder,
+  WorkOrderRequest,
+} from "@/lib/inventory/inventoryTypes";
+import type {
+  AddPartyReceivedPaymentInput,
+  PartyReceivedPayment,
+} from "@/lib/inventory/partyPaymentTypes";
+import { nextPartyReceiptId } from "@/lib/inventory/partyPaymentTypes";
+import { isPoPayable } from "@/lib/inventory/poTotals";
+import { isWoPayable } from "@/lib/inventory/workOrderStock";
+import {
+  buildMaterialFromForm,
+  type AddMaterialFormInput,
+} from "@/lib/inventory/createMaterial";
+import {
+  buildSupplierFromForm,
+  normalizeSupplier,
+  type AddSupplierFormInput,
+} from "@/lib/inventory/createSupplier";
+import {
+  buildContractorFromForm,
+  normalizeContractor,
+  type AddContractorFormInput,
+} from "@/lib/inventory/createContractor";
+import {
+  buildPurchaseRequestFromForm,
+  type AddPurchaseRequestFormInput,
+} from "@/lib/inventory/createPurchaseRequest";
+import {
+  markRequestApproved,
+  purchaseOrderFromApprovedRequest,
+} from "@/lib/inventory/approvePurchaseRequest";
+import { computePoTotals, DEFAULT_GST_RATE } from "@/lib/inventory/poTotals";
+import {
+  buildWorkOrderRequestFromForm,
+  type AddWorkOrderRequestFormInput,
+} from "@/lib/inventory/createWorkOrderRequest";
+import {
+  markRequestGenerated,
+  workOrderFromRequest,
+} from "@/lib/inventory/generateWorkOrder";
+import {
+  applyMaterialIssues,
+  applyMaterialReturns,
+  clampReturnLines,
+  isWoPayable,
+} from "@/lib/inventory/workOrderStock";
+import {
+  MOCK_CONTRACTORS,
+  MOCK_MATERIALS,
+  MOCK_PURCHASE_ORDERS,
+  MOCK_PURCHASE_REQUESTS,
+  MOCK_SUPPLIERS,
+  MOCK_WORK_ORDER_REQUESTS,
+  MOCK_WORK_ORDERS,
+} from "@/lib/inventory/mockInventoryData";
 import type { AddCustomerFormInput } from "@/lib/customers/buildCustomerProfile";
 import { buildCustomerProfile } from "@/lib/customers/buildCustomerProfile";
 import { canEditBusinessProfile } from "@/lib/auth/businessProfileAccess";
 import { registerLocalUser } from "@/lib/auth/registeredUsersStore";
 import {
   createDefaultBusinessProfile,
+  createDefaultInventorySettings,
   createDefaultModuleSettings,
   createDefaultProfileSettings,
   createDefaultSalesSettings,
   resolveBusinessProfile,
+  resolveInventorySettings,
   resolveSalesSettings,
 } from "@/lib/settings/defaultSettings";
 import type {
   BusinessProfileData,
+  InventorySettingsData,
   InvoiceTemplateSettings,
   MessengerTemplateSettings,
   ModuleSettingsData,
@@ -74,8 +142,24 @@ function createEmptyStore(): AppStore {
     whatsappOutbox: [],
     businessProfile: createDefaultBusinessProfile(),
     salesSettings: createDefaultSalesSettings(),
-    inventorySettings: createDefaultModuleSettings(),
+    inventorySettings: createDefaultInventorySettings(),
     customerSettings: createDefaultModuleSettings(),
+    materials: MOCK_MATERIALS.map((m) => ({ ...m, workCategories: [...m.workCategories] })),
+    suppliers: MOCK_SUPPLIERS.map((s) =>
+      normalizeSupplier({ ...s, workCategories: [...s.workCategories] })
+    ),
+    contractors: MOCK_CONTRACTORS.map((c) =>
+      normalizeContractor({
+        ...c,
+        workCategories: [...(c.workCategories ?? [])],
+        workProfile: c.workProfile ?? c.trade ?? "",
+      })
+    ),
+    purchaseOrders: MOCK_PURCHASE_ORDERS.map((po) => ({ ...po })),
+    purchaseRequests: MOCK_PURCHASE_REQUESTS.map((r) => ({ ...r })),
+    workOrderRequests: MOCK_WORK_ORDER_REQUESTS.map((r) => ({ ...r })),
+    workOrders: MOCK_WORK_ORDERS.map((wo) => ({ ...wo })),
+    partyReceivedPayments: [],
   };
 }
 
@@ -644,29 +728,43 @@ export function useAppData() {
     [store, persist]
   );
 
-  const updateModuleSettings = useCallback(
-    async (
-      key: "inventorySettings" | "customerSettings",
-      patch: Partial<ModuleSettingsData>
-    ) => {
+  const updateCustomerModuleSettings = useCallback(
+    async (patch: Partial<ModuleSettingsData>) => {
       if (!store) return null;
-      const api =
-        key === "inventorySettings"
-          ? apiRepository.inventorySettings
-          : apiRepository.customerSettings;
       if (USE_API) {
         try {
-          const updated = await api.update(patch);
-          persist({ ...store, [key]: updated });
+          const updated = await apiRepository.customerSettings.update(patch);
+          persist({ ...store, customerSettings: updated });
           return updated;
         } catch (err) {
-          console.error(`update ${key} API error:`, err);
+          console.error("update customerSettings API error:", err);
           return null;
         }
       }
-      const current = store[key] ?? createDefaultModuleSettings();
+      const current = store.customerSettings ?? createDefaultModuleSettings();
       const updated = { ...current, ...patch };
-      persist({ ...store, [key]: updated });
+      persist({ ...store, customerSettings: updated });
+      return updated;
+    },
+    [store, persist]
+  );
+
+  const updateInventorySettings = useCallback(
+    async (patch: Partial<InventorySettingsData>) => {
+      if (!store) return null;
+      if (USE_API) {
+        try {
+          const updated = await apiRepository.inventorySettings.update(patch);
+          persist({ ...store, inventorySettings: resolveInventorySettings(updated) });
+          return resolveInventorySettings(updated);
+        } catch (err) {
+          console.error("update inventorySettings API error:", err);
+          return null;
+        }
+      }
+      const current = resolveInventorySettings(store.inventorySettings);
+      const updated = resolveInventorySettings({ ...current, ...patch });
+      persist({ ...store, inventorySettings: updated });
       return updated;
     },
     [store, persist]
@@ -682,6 +780,662 @@ export function useAppData() {
     [receivedPayments]
   );
 
+  const materials: Material[] = useMemo(() => {
+    if (store?.materials) return store.materials;
+    return MOCK_MATERIALS.map((m) => ({ ...m, workCategories: [...m.workCategories] }));
+  }, [store?.materials]);
+
+  const purchaseOrders: PurchaseOrder[] = useMemo(() => {
+    if (store?.purchaseOrders) return store.purchaseOrders;
+    return MOCK_PURCHASE_ORDERS.map((po) => ({ ...po }));
+  }, [store?.purchaseOrders]);
+
+  const purchaseRequests: PurchaseRequest[] = useMemo(() => {
+    if (store?.purchaseRequests) return store.purchaseRequests;
+    return MOCK_PURCHASE_REQUESTS.map((r) => ({ ...r }));
+  }, [store?.purchaseRequests]);
+
+  const addPurchaseRequest = useCallback(
+    (input: Omit<AddPurchaseRequestFormInput, "requestIdPrefix" | "requestIdNext">) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const request = buildPurchaseRequestFromForm({
+        ...input,
+        requestIdPrefix: inv.requestIdPrefix,
+        requestIdNext: inv.requestIdNext,
+      });
+      const next = [...(store.purchaseRequests ?? purchaseRequests), request];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        requestIdNext: inv.requestIdNext + 1,
+      });
+      persist({ ...store, purchaseRequests: next, inventorySettings: nextSettings });
+      return request;
+    },
+    [store, purchaseRequests, persist]
+  );
+
+  /** Approve request → create payable PO (purchase id) + link. */
+  const approvePurchaseRequest = useCallback(
+    (requestId: string) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const list = store.purchaseRequests ?? purchaseRequests;
+      const req = list.find((r) => r.id === requestId || r.requestNo === requestId);
+      if (!req || req.status !== "pending") return null;
+
+      const po = purchaseOrderFromApprovedRequest(req, inv.poIdPrefix, inv.poIdNext);
+      const nextRequests = list.map((r) =>
+        r.id === req.id ? markRequestApproved(r, po.id) : r
+      );
+      const nextPos = [...(store.purchaseOrders ?? purchaseOrders), po];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        poIdNext: inv.poIdNext + 1,
+      });
+      persist({
+        ...store,
+        purchaseRequests: nextRequests,
+        purchaseOrders: nextPos,
+        inventorySettings: nextSettings,
+      });
+      return po;
+    },
+    [store, purchaseRequests, purchaseOrders, persist]
+  );
+
+  const rejectPurchaseRequest = useCallback(
+    (requestId: string) => {
+      if (!store) return false;
+      const list = store.purchaseRequests ?? purchaseRequests;
+      const next = list.map((r) =>
+        r.id === requestId || r.requestNo === requestId
+          ? { ...r, status: "rejected" as const }
+          : r
+      );
+      persist({ ...store, purchaseRequests: next });
+      return true;
+    },
+    [store, purchaseRequests, persist]
+  );
+
+  const getPurchaseOrderById = useCallback(
+    (poId: string) => {
+      return purchaseOrders.find((p) => p.id === poId);
+    },
+    [purchaseOrders]
+  );
+
+  const getPurchaseRequestById = useCallback(
+    (id: string) => {
+      return purchaseRequests.find((r) => r.id === id || r.requestNo === id);
+    },
+    [purchaseRequests]
+  );
+
+  /**
+   * Edit PO amounts after approve (especially when grand total was 0).
+   * Does not write to supplier master — only updates the unique PO record.
+   * Sets payable when grandTotal > 0.
+   */
+  const workOrderRequests: WorkOrderRequest[] = useMemo(() => {
+    if (store?.workOrderRequests) return store.workOrderRequests;
+    return MOCK_WORK_ORDER_REQUESTS.map((r) => ({ ...r }));
+  }, [store?.workOrderRequests]);
+
+  const workOrders: WorkOrder[] = useMemo(() => {
+    if (store?.workOrders) return store.workOrders;
+    return MOCK_WORK_ORDERS.map((wo) => ({ ...wo }));
+  }, [store?.workOrders]);
+
+  const addWorkOrderRequest = useCallback(
+    (
+      input: Omit<
+        AddWorkOrderRequestFormInput,
+        "workRequestIdPrefix" | "workRequestIdNext"
+      >
+    ) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const request = buildWorkOrderRequestFromForm({
+        ...input,
+        workRequestIdPrefix: inv.workRequestIdPrefix,
+        workRequestIdNext: inv.workRequestIdNext,
+      });
+      const next = [...(store.workOrderRequests ?? workOrderRequests), request];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        workRequestIdNext: inv.workRequestIdNext + 1,
+      });
+      persist({ ...store, workOrderRequests: next, inventorySettings: nextSettings });
+      return request;
+    },
+    [store, workOrderRequests, persist]
+  );
+
+  /** Generate unique WO from request; deduct issued materials from stock. */
+  const generateWorkOrder = useCallback(
+    (requestId: string) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const list = store.workOrderRequests ?? workOrderRequests;
+      const req = list.find((r) => r.id === requestId || r.requestNo === requestId);
+      if (!req || req.status !== "pending") return null;
+
+      const wo = workOrderFromRequest(req, inv.workOrderIdPrefix, inv.workOrderIdNext);
+      const catalog = store.materials ?? materials;
+      const nextMaterials = applyMaterialIssues(catalog, wo.materialIssues ?? []);
+      const nextRequests = list.map((r) =>
+        r.id === req.id ? markRequestGenerated(r, wo.id) : r
+      );
+      const nextWos = [...(store.workOrders ?? workOrders), wo];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        workOrderIdNext: inv.workOrderIdNext + 1,
+      });
+      persist({
+        ...store,
+        workOrderRequests: nextRequests,
+        workOrders: nextWos,
+        materials: nextMaterials,
+        inventorySettings: nextSettings,
+      });
+      return wo;
+    },
+    [store, workOrderRequests, workOrders, materials, persist]
+  );
+
+  const rejectWorkOrderRequest = useCallback(
+    (requestId: string) => {
+      if (!store) return false;
+      const list = store.workOrderRequests ?? workOrderRequests;
+      const next = list.map((r) =>
+        r.id === requestId || r.requestNo === requestId
+          ? { ...r, status: "rejected" as const }
+          : r
+      );
+      persist({ ...store, workOrderRequests: next });
+      return true;
+    },
+    [store, workOrderRequests, persist]
+  );
+
+  const getWorkOrderById = useCallback(
+    (id: string) => workOrders.find((w) => w.id === id),
+    [workOrders]
+  );
+
+  const getWorkOrderRequestById = useCallback(
+    (id: string) =>
+      workOrderRequests.find((r) => r.id === id || r.requestNo === id),
+    [workOrderRequests]
+  );
+
+  const partyReceivedPayments: PartyReceivedPayment[] = useMemo(() => {
+    return store?.partyReceivedPayments ?? [];
+  }, [store?.partyReceivedPayments]);
+
+  const getPartyPaymentById = useCallback(
+    (id: string) => partyReceivedPayments.find((p) => p.id === id),
+    [partyReceivedPayments]
+  );
+
+  /**
+   * Record payment against a payable PO or WO (no GST).
+   * Updates amountPaid on the source document + appends payment log.
+   */
+  const addPartyReceivedPayment = useCallback(
+    (input: AddPartyReceivedPaymentInput) => {
+      if (!store) return null;
+      const received = Math.max(0, Number(input.received) || 0);
+      if (received <= 0) return null;
+
+      if (input.sourceType === "purchase_order") {
+        const pos = store.purchaseOrders ?? purchaseOrders;
+        const po = pos.find((p) => p.id === input.sourceId);
+        if (!po || !isPoPayable(po)) return null;
+        const total = po.grandTotal ?? po.amountTotal ?? 0;
+        const paid = po.amountPaid ?? 0;
+        const remaining = Math.max(0, total - paid);
+        if (received > remaining) return null;
+        const newPaid = paid + received;
+        // Use store only — suppliers memo is declared later in this hook (avoid TDZ).
+        const sup = (store.suppliers ?? []).find((s) => s.id === input.partyId);
+        const partyAddress = [sup?.address, sup?.pinCode].filter(Boolean).join(", ");
+        const existingPayIds = (store.partyReceivedPayments ?? []).map((p) => p.id);
+        const entry: PartyReceivedPayment = {
+          id: nextPartyReceiptId("supplier", existingPayIds),
+          partyType: "supplier",
+          partyId: input.partyId,
+          partyName: input.partyName,
+          sourceType: "purchase_order",
+          sourceId: po.id,
+          amountTotal: total,
+          amountRemainingBefore: remaining,
+          received,
+          remainingAfter: Math.max(0, total - newPaid),
+          method: input.method,
+          date: input.date,
+          note: input.note,
+          materialDescription: [po.materialName, po.productDescription]
+            .filter(Boolean)
+            .join(" — "),
+          partyAddress: partyAddress || undefined,
+          partyGstin: sup?.gstin || undefined,
+          status: "recorded",
+        };
+        const nextPos = pos.map((p) =>
+          p.id === po.id
+            ? {
+                ...p,
+                amountPaid: newPaid,
+                payable: total - newPaid > 0 || total > 0,
+              }
+            : p
+        );
+        const nextLog = [...(store.partyReceivedPayments ?? []), entry];
+        persist({
+          ...store,
+          purchaseOrders: nextPos,
+          partyReceivedPayments: nextLog,
+        });
+        return entry;
+      }
+
+      const wos = store.workOrders ?? workOrders;
+      const wo = wos.find((w) => w.id === input.sourceId);
+      if (!wo || !isWoPayable(wo)) return null;
+      const total = wo.amountTotal ?? 0;
+      const paid = wo.amountPaid ?? 0;
+      const remaining = Math.max(0, total - paid);
+      if (received > remaining) return null;
+      const newPaid = paid + received;
+      // Use store only — contractors memo is declared later in this hook (avoid TDZ).
+      const con = (store.contractors ?? []).find((c) => c.id === input.partyId);
+      const partyAddress = [con?.address, con?.pinCode].filter(Boolean).join(", ");
+      const existingPayIds = (store.partyReceivedPayments ?? []).map((p) => p.id);
+      const entry: PartyReceivedPayment = {
+        id: nextPartyReceiptId("contractor", existingPayIds),
+        partyType: "contractor",
+        partyId: input.partyId,
+        partyName: input.partyName,
+        sourceType: "work_order",
+        sourceId: wo.id,
+        amountTotal: total,
+        amountRemainingBefore: remaining,
+        received,
+        remainingAfter: Math.max(0, total - newPaid),
+        method: input.method,
+        date: input.date,
+        note: input.note,
+        workDescription: wo.description || wo.title,
+        partyAddress: partyAddress || undefined,
+        partyGstin: con?.gstin || undefined,
+        status: "recorded",
+      };
+      const nextWos = wos.map((w) =>
+        w.id === wo.id
+          ? {
+              ...w,
+              amountPaid: newPaid,
+              payable: total - newPaid > 0 || total > 0,
+            }
+          : w
+      );
+      const nextLog = [...(store.partyReceivedPayments ?? []), entry];
+      persist({
+        ...store,
+        workOrders: nextWos,
+        partyReceivedPayments: nextLog,
+      });
+      return entry;
+    },
+    [store, purchaseOrders, workOrders, persist]
+  );
+
+  /** Set work amount after generate — payable when > 0. No contractor master write. */
+  const updateWorkOrderAmount = useCallback(
+    (woId: string, amountTotal: number) => {
+      if (!store) return null;
+      const list = store.workOrders ?? workOrders;
+      const idx = list.findIndex((w) => w.id === woId);
+      if (idx < 0) return null;
+      const prev = list[idx];
+      const total = Math.max(0, Number(amountTotal) || 0);
+      const nextWo: WorkOrder = {
+        ...prev,
+        amountTotal: total,
+        amountPaid: Math.min(prev.amountPaid ?? 0, total),
+        payable: total > 0,
+      };
+      const next = [...list];
+      next[idx] = nextWo;
+      persist({ ...store, workOrders: next });
+      return nextWo;
+    },
+    [store, workOrders, persist]
+  );
+
+  /** Return unused materials → stock + (clamped to net issued). */
+  const returnWorkOrderMaterials = useCallback(
+    (woId: string, lines: WorkMaterialLine[]) => {
+      if (!store) return null;
+      const list = store.workOrders ?? workOrders;
+      const idx = list.findIndex((w) => w.id === woId);
+      if (idx < 0) return null;
+      const prev = list[idx];
+      const clamped = clampReturnLines(prev, lines);
+      if (!clamped.length) return prev;
+      const nextMaterials = applyMaterialReturns(
+        store.materials ?? materials,
+        clamped
+      );
+      const nextWo: WorkOrder = {
+        ...prev,
+        materialReturns: [...(prev.materialReturns ?? []), ...clamped],
+      };
+      const next = [...list];
+      next[idx] = nextWo;
+      persist({ ...store, workOrders: next, materials: nextMaterials });
+      return nextWo;
+    },
+    [store, workOrders, materials, persist]
+  );
+
+  const updatePurchaseOrderAmounts = useCallback(
+    (
+      poId: string,
+      patch: {
+        quantity?: number;
+        unitPrice?: number;
+        lineTotal?: number;
+        gstRate?: number;
+        productDescription?: string;
+        shipToAddress?: string;
+        unit?: string;
+      }
+    ) => {
+      if (!store) return null;
+      const list = store.purchaseOrders ?? purchaseOrders;
+      const idx = list.findIndex((p) => p.id === poId);
+      if (idx < 0) return null;
+      const prev = list[idx];
+      const quantity =
+        typeof patch.quantity === "number" ? Math.max(0, patch.quantity) : prev.quantity;
+      const unitPrice =
+        typeof patch.unitPrice === "number"
+          ? Math.max(0, patch.unitPrice)
+          : (prev.unitPrice ?? 0);
+      const lineTotal =
+        typeof patch.lineTotal === "number"
+          ? Math.max(0, patch.lineTotal)
+          : (prev.subTotal ?? prev.amountTotal ?? 0);
+      const gstRate =
+        typeof patch.gstRate === "number" ? Math.max(0, patch.gstRate) : (prev.gstRate ?? DEFAULT_GST_RATE);
+      const totals = computePoTotals({ subTotal: lineTotal, gstRate });
+      const nextPo: PurchaseOrder = {
+        ...prev,
+        quantity,
+        unitPrice,
+        unit: patch.unit?.trim() || prev.unit,
+        productDescription:
+          patch.productDescription !== undefined
+            ? patch.productDescription.trim()
+            : prev.productDescription,
+        shipToAddress:
+          patch.shipToAddress !== undefined
+            ? patch.shipToAddress.trim()
+            : prev.shipToAddress,
+        subTotal: totals.subTotal,
+        gstRate: totals.gstRate,
+        gstAmount: totals.gstAmount,
+        roundOff: totals.roundOff,
+        grandTotal: totals.grandTotal,
+        amountTotal: totals.grandTotal,
+        amountPaid: Math.min(prev.amountPaid ?? 0, totals.grandTotal),
+        payable: totals.grandTotal > 0,
+      };
+      const next = [...list];
+      next[idx] = nextPo;
+      persist({ ...store, purchaseOrders: next });
+      return nextPo;
+    },
+    [store, purchaseOrders, persist]
+  );
+
+  const addMaterial = useCallback(
+    (input: AddMaterialFormInput) => {
+      if (!store) return null;
+      const material = buildMaterialFromForm(input);
+      const next = [...(store.materials ?? materials), material];
+      persist({ ...store, materials: next });
+      return material;
+    },
+    [store, materials, persist]
+  );
+
+  /** Remove materials by id. POs keep materialId/materialName for history (orphan FK ok). */
+  const deleteMaterials = useCallback(
+    (ids: string[]) => {
+      if (!store || ids.length === 0) return false;
+      const idSet = new Set(ids);
+      const next = (store.materials ?? materials).filter((m) => !idSet.has(m.id));
+      persist({ ...store, materials: next });
+      return true;
+    },
+    [store, materials, persist]
+  );
+
+  const suppliers: Supplier[] = useMemo(() => {
+    if (store?.suppliers) {
+      return store.suppliers.map(normalizeSupplier);
+    }
+    return MOCK_SUPPLIERS.map((s) => normalizeSupplier({ ...s, workCategories: [...s.workCategories] }));
+  }, [store?.suppliers]);
+
+  const addSupplier = useCallback(
+    (input: Omit<AddSupplierFormInput, "idPrefix" | "idNext">) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const supplier = buildSupplierFromForm({
+        ...input,
+        idPrefix: inv.supplierIdPrefix,
+        idNext: inv.supplierIdNext,
+      });
+      const next = [...(store.suppliers ?? suppliers), supplier];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        supplierIdNext: inv.supplierIdNext + 1,
+      });
+      persist({ ...store, suppliers: next, inventorySettings: nextSettings });
+      return supplier;
+    },
+    [store, suppliers, persist]
+  );
+
+  /** Soft status only — no hard delete from UI */
+  const setSuppliersStatus = useCallback(
+    (ids: string[], status: SupplierStatus) => {
+      if (!store || ids.length === 0) return false;
+      const idSet = new Set(ids);
+      const next = (store.suppliers ?? suppliers).map((s) =>
+        idSet.has(s.id) ? { ...normalizeSupplier(s), status } : normalizeSupplier(s)
+      );
+      persist({ ...store, suppliers: next });
+      return true;
+    },
+    [store, suppliers, persist]
+  );
+
+  /** Profile fields only — payment totals stay rollup-driven from POs. */
+  const updateSupplier = useCallback(
+    (
+      id: string,
+      patch: Partial<
+        Pick<
+          Supplier,
+          | "name"
+          | "phone"
+          | "email"
+          | "address"
+          | "pinCode"
+          | "gstin"
+          | "workCategories"
+          | "status"
+        >
+      >
+    ) => {
+      if (!store || !id) return null;
+      const list = store.suppliers ?? suppliers;
+      const idx = list.findIndex((s) => s.id === id);
+      if (idx < 0) return null;
+      const prev = normalizeSupplier(list[idx]);
+      const nextSupplier = normalizeSupplier({
+        ...prev,
+        name: patch.name !== undefined ? patch.name.trim() : prev.name,
+        phone: patch.phone !== undefined ? patch.phone.trim() || undefined : prev.phone,
+        email: patch.email !== undefined ? patch.email.trim() || undefined : prev.email,
+        address:
+          patch.address !== undefined ? patch.address.trim() || undefined : prev.address,
+        pinCode:
+          patch.pinCode !== undefined ? patch.pinCode.trim() || undefined : prev.pinCode,
+        gstin: patch.gstin !== undefined ? patch.gstin.trim() || undefined : prev.gstin,
+        workCategories:
+          patch.workCategories !== undefined
+            ? [...patch.workCategories]
+            : prev.workCategories,
+        status: patch.status !== undefined ? patch.status : prev.status,
+      });
+      if (!nextSupplier.name) return null;
+      const next = [...list];
+      next[idx] = nextSupplier;
+      persist({ ...store, suppliers: next });
+      return nextSupplier;
+    },
+    [store, suppliers, persist]
+  );
+
+  const contractors: Contractor[] = useMemo(() => {
+    if (store?.contractors) {
+      return store.contractors.map(normalizeContractor);
+    }
+    return MOCK_CONTRACTORS.map((c) =>
+      normalizeContractor({
+        ...c,
+        workCategories: [...(c.workCategories ?? [])],
+        workProfile: c.workProfile ?? c.trade ?? "",
+      })
+    );
+  }, [store?.contractors]);
+
+  const addContractor = useCallback(
+    (input: Omit<AddContractorFormInput, "idPrefix" | "idNext">) => {
+      if (!store) return null;
+      const inv = resolveInventorySettings(store.inventorySettings);
+      const contractor = buildContractorFromForm({
+        ...input,
+        idPrefix: inv.contractorIdPrefix,
+        idNext: inv.contractorIdNext,
+      });
+      const next = [...(store.contractors ?? contractors), contractor];
+      const nextSettings = resolveInventorySettings({
+        ...inv,
+        contractorIdNext: inv.contractorIdNext + 1,
+      });
+      persist({ ...store, contractors: next, inventorySettings: nextSettings });
+      return contractor;
+    },
+    [store, contractors, persist]
+  );
+
+  const setContractorsStatus = useCallback(
+    (ids: string[], status: ContractorStatus) => {
+      if (!store || ids.length === 0) return false;
+      const idSet = new Set(ids);
+      const next = (store.contractors ?? contractors).map((c) =>
+        idSet.has(c.id) ? { ...normalizeContractor(c), status } : normalizeContractor(c)
+      );
+      persist({ ...store, contractors: next });
+      return true;
+    },
+    [store, contractors, persist]
+  );
+
+  /** Profile fields only — payment totals stay rollup-driven from WOs. */
+  const updateContractor = useCallback(
+    (
+      id: string,
+      patch: Partial<
+        Pick<
+          Contractor,
+          | "name"
+          | "workProfile"
+          | "phone"
+          | "email"
+          | "address"
+          | "pinCode"
+          | "gstin"
+          | "workCategories"
+          | "status"
+        >
+      >
+    ) => {
+      if (!store || !id) return null;
+      const list = store.contractors ?? contractors;
+      const idx = list.findIndex((c) => c.id === id);
+      if (idx < 0) return null;
+      const prev = normalizeContractor(list[idx]);
+      const workProfile =
+        patch.workProfile !== undefined ? patch.workProfile.trim() : prev.workProfile;
+      const nextContractor = normalizeContractor({
+        ...prev,
+        name: patch.name !== undefined ? patch.name.trim() : prev.name,
+        workProfile,
+        trade: workProfile || undefined,
+        phone: patch.phone !== undefined ? patch.phone.trim() || undefined : prev.phone,
+        email: patch.email !== undefined ? patch.email.trim() || undefined : prev.email,
+        address:
+          patch.address !== undefined ? patch.address.trim() || undefined : prev.address,
+        pinCode:
+          patch.pinCode !== undefined ? patch.pinCode.trim() || undefined : prev.pinCode,
+        gstin: patch.gstin !== undefined ? patch.gstin.trim() || undefined : prev.gstin,
+        workCategories:
+          patch.workCategories !== undefined
+            ? [...patch.workCategories]
+            : prev.workCategories,
+        status: patch.status !== undefined ? patch.status : prev.status,
+      });
+      if (!nextContractor.name) return null;
+      const next = [...list];
+      next[idx] = nextContractor;
+      persist({ ...store, contractors: next });
+      return nextContractor;
+    },
+    [store, contractors, persist]
+  );
+
+  const deleteSuppliers = useCallback(
+    (ids: string[]) => {
+      if (!store || ids.length === 0) return false;
+      const idSet = new Set(ids);
+      const next = (store.suppliers ?? suppliers).filter((s) => !idSet.has(s.id));
+      persist({ ...store, suppliers: next });
+      return true;
+    },
+    [store, suppliers, persist]
+  );
+
+  const deleteContractors = useCallback(
+    (ids: string[]) => {
+      if (!store || ids.length === 0) return false;
+      const idSet = new Set(ids);
+      const next = (store.contractors ?? contractors).filter((c) => !idSet.has(c.id));
+      persist({ ...store, contractors: next });
+      return true;
+    },
+    [store, contractors, persist]
+  );
+
   return {
     store,
     projects,
@@ -691,6 +1445,36 @@ export function useAppData() {
     slabs,
     receivedPayments,
     invoices,
+    materials,
+    suppliers,
+    contractors,
+    purchaseOrders,
+    purchaseRequests,
+    workOrders,
+    workOrderRequests,
+    addPurchaseRequest,
+    approvePurchaseRequest,
+    rejectPurchaseRequest,
+    getPurchaseOrderById,
+    getPurchaseRequestById,
+    updatePurchaseOrderAmounts,
+    addWorkOrderRequest,
+    generateWorkOrder,
+    rejectWorkOrderRequest,
+    getWorkOrderById,
+    getWorkOrderRequestById,
+    updateWorkOrderAmount,
+    returnWorkOrderMaterials,
+    addMaterial,
+    deleteMaterials,
+    addSupplier,
+    setSuppliersStatus,
+    updateSupplier,
+    deleteSuppliers,
+    addContractor,
+    setContractorsStatus,
+    updateContractor,
+    deleteContractors,
     loading,
     addProject,
     removeProject,
@@ -714,19 +1498,20 @@ export function useAppData() {
     salesSettings,
     invoiceTemplate,
     messengerTemplates,
-    inventorySettings: store?.inventorySettings ?? createDefaultModuleSettings(),
+    inventorySettings: resolveInventorySettings(store?.inventorySettings),
     customerSettings: store?.customerSettings ?? createDefaultModuleSettings(),
     registerUser,
     updateBusinessProfile,
     updateProfileSettings,
     updateInvoiceTemplate,
     updateMessengerTemplates,
-    updateInventorySettings: (patch: Partial<ModuleSettingsData>) =>
-      updateModuleSettings("inventorySettings", patch),
-    updateCustomerSettings: (patch: Partial<ModuleSettingsData>) =>
-      updateModuleSettings("customerSettings", patch),
+    updateInventorySettings,
+    updateCustomerSettings: updateCustomerModuleSettings,
     getInvoiceById,
     getPaymentById,
+    partyReceivedPayments,
+    getPartyPaymentById,
+    addPartyReceivedPayment,
     setProjects: (p: ProjectData[]) => store && persist({ ...store, projects: p }),
     setCustomers: () => {},
     setReceivedPayments: (r: ReceivedPayment[]) =>

@@ -6,10 +6,14 @@ import "@/components/dashboard/dashboardMasterCard.css";
 import { Badge } from "@/components/ui/Badge";
 import { fmt } from "@/lib/utils";
 import { PROP_TYPE_TAG } from "@/lib/constants";
-import { recentBookings, recentInvestments, paymentRequests } from "@/lib/mockData";
+import { recentBookings, recentInvestments } from "@/lib/mockData";
 import { computeDashboardKpis } from "@/lib/dashboard/dashboardMetrics";
+import { isPoPayable } from "@/lib/inventory/poTotals";
+import { isWoPayable } from "@/lib/inventory/workOrderStock";
 import type { CustomerDetailProfile } from "@/lib/customers/customerDetailTypes";
 import type { ProjectData, ReceivedPayment } from "@/lib/types";
+import type { PartyReceivedPayment } from "@/lib/inventory/partyPaymentTypes";
+import type { PurchaseOrder, WorkOrder } from "@/lib/inventory/inventoryTypes";
 
 function KpiCard({
   label,
@@ -64,16 +68,48 @@ export function Dashboard({
   projects,
   customerProfiles,
   receivedPayments,
+  partyReceivedPayments = [],
+  purchaseOrders = [],
+  workOrders = [],
   projectNames,
   isAllSites,
 }: {
   projects: ProjectData[];
   customerProfiles: CustomerDetailProfile[];
   receivedPayments: ReceivedPayment[];
+  partyReceivedPayments?: PartyReceivedPayment[];
+  purchaseOrders?: PurchaseOrder[];
+  workOrders?: WorkOrder[];
   projectNames: string[];
   isAllSites: boolean;
 }) {
   const navigate = useNavigate();
+
+  const recentPartyPays = useMemo(
+    () =>
+      [...partyReceivedPayments]
+        .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+        .slice(0, 8),
+    [partyReceivedPayments]
+  );
+
+  /** Sum of remaining on all payable POs + WOs (same as payment log). */
+  const totalPayableAmount = useMemo(() => {
+    let sum = 0;
+    for (const po of purchaseOrders) {
+      if (!isPoPayable(po)) continue;
+      const total = po.grandTotal ?? po.amountTotal ?? 0;
+      const paid = po.amountPaid ?? 0;
+      sum += Math.max(0, total - paid);
+    }
+    for (const wo of workOrders) {
+      if (!isWoPayable(wo)) continue;
+      const total = wo.amountTotal ?? 0;
+      const paid = wo.amountPaid ?? 0;
+      sum += Math.max(0, total - paid);
+    }
+    return sum;
+  }, [purchaseOrders, workOrders]);
 
   const kpis = useMemo(
     () =>
@@ -221,12 +257,24 @@ export function Dashboard({
         </div>
 
         <KpiCard
-          label="Remaining Investment / Total"
-          subtitle="No investment data yet"
-          value={<p className="text-3xl font-bold text-[#1e3a5f]">—</p>}
+          label="Total payable amount"
+          onClick={() => navigate("/dashboard/party-payments")}
+          subtitle={
+            totalPayableAmount > 0
+              ? "Supplier + contractor remaining (payment log)"
+              : "No payable amount on payment log"
+          }
+          value={
+            <p className="text-3xl font-bold text-[#1e3a5f]">
+              {totalPayableAmount > 0 ? fmt(totalPayableAmount) : "—"}
+            </p>
+          }
         >
           <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: "0%" }} />
+            <div
+              className="h-full bg-orange-400 rounded-full transition-all"
+              style={{ width: totalPayableAmount > 0 ? "100%" : "0%" }}
+            />
           </div>
         </KpiCard>
       </div>
@@ -375,34 +423,91 @@ export function Dashboard({
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <AlertCircle size={14} className="text-orange-500" />
-            <h3 className="text-sm font-semibold text-[#0f1a35]">Recent Payment Requests</h3>
+            <h3 className="text-sm font-semibold text-[#0f1a35]">
+              Recent payment log (suppliers &amp; contractors)
+            </h3>
           </div>
-          <button className="flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
-            <Plus size={11} /> New Request
-          </button>
-        </div>
-        <div className="p-5 grid grid-cols-3 gap-4">
-          {paymentRequests.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-6 col-span-3">No data yet.</p>
-          )}
-          {paymentRequests.map((pr) => (
-            <div
-              key={pr.id}
-              className={`p-4 rounded-xl border ${
-                pr.status === "overdue" ? "border-orange-200 bg-orange-50" : "border-blue-100 bg-blue-50"
-              }`}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/party-payments/all")}
+              className="text-xs font-semibold text-blue-600 hover:underline px-2"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-gray-400 font-mono">{pr.id}</span>
-                <Badge status={pr.status} />
-              </div>
-              <p className="text-sm font-semibold text-[#0f1a35]">{pr.customer}</p>
-              <p className="text-[11px] text-gray-500">Flat {pr.flat}</p>
-              <p className="text-lg font-bold text-[#1e3a35] mt-2">{fmt(pr.amount)}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Due: {pr.due}</p>
-            </div>
-          ))}
+              View all
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/party-payments/receive")}
+              className="flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={11} /> Received Payment
+            </button>
+          </div>
         </div>
+        {recentPartyPays.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">
+            No supplier/contractor payments yet.{" "}
+            <button
+              type="button"
+              className="text-blue-600 font-semibold hover:underline"
+              onClick={() => navigate("/dashboard/party-payments")}
+            >
+              Open payment log
+            </button>
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-100 bg-gray-50">
+                  <th className="px-5 py-2.5 font-semibold">Receipt No</th>
+                  <th className="px-3 py-2.5 font-semibold">Date</th>
+                  <th className="px-3 py-2.5 font-semibold">Name</th>
+                  <th className="px-3 py-2.5 font-semibold">Type</th>
+                  <th className="px-3 py-2.5 font-semibold">PO / WO</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Done</th>
+                  <th className="px-5 py-2.5 font-semibold text-right">Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentPartyPays.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
+                  >
+                    <td className="px-5 py-3 font-mono text-xs font-medium text-[#0f1a35]">
+                      {p.id}
+                    </td>
+                    <td className="px-3 py-3 text-gray-500">{p.date}</td>
+                    <td className="px-3 py-3 font-medium text-[#0f1a35]">
+                      {p.partyName}
+                    </td>
+                    <td className="px-3 py-3 capitalize text-gray-600">
+                      {p.partyType}
+                    </td>
+                    <td className="px-3 py-3 font-mono text-xs text-gray-600">
+                      {p.sourceId}
+                    </td>
+                    <td className="px-3 py-3 text-right font-semibold text-emerald-600">
+                      {fmt(p.received)}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                        onClick={() =>
+                          navigate(`/dashboard/party-payments/receipt/${p.id}`)
+                        }
+                      >
+                        Print
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

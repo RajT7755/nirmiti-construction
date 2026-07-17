@@ -18,6 +18,11 @@ const SETTINGS_PATHS = [
   "/settings/profile",
   "/settings/business",
   "/settings/inventory",
+  "/settings/inventory/materials",
+  "/settings/inventory/suppliers",
+  "/settings/inventory/contractors",
+  "/settings/inventory/purchase-orders",
+  "/settings/inventory/work-orders",
   "/settings/sales",
   "/settings/sales/invoice-template",
   "/settings/sales/message-templates",
@@ -27,7 +32,7 @@ const SETTINGS_PATHS = [
 const SETTINGS_CHILDREN = [
   { label: "Profile", path: "/settings/profile" },
   { label: "Business Profile", path: "/settings/business" },
-  { label: "Inventory", path: "/settings/inventory" },
+  { label: "Inventory", path: "/settings/inventory/materials" },
   { label: "Sales", path: "/settings/sales" },
   { label: "Customers", path: "/settings/customers" },
 ];

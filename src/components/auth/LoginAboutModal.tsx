@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { getLoginLogoUrl } from "@/lib/auth/loginLogo";
+import { DEFAULT_LOGO_SRC } from "@/lib/branding/defaultBrand";
 import {
   LEGAL_META,
   PRIVACY_POLICY,
@@ -77,10 +78,15 @@ export function LoginAboutModal({
   onOpenPrivacy?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [logoSrc, setLogoSrc] = useState(() => getLoginLogoUrl(businessProfile) || DEFAULT_LOGO_SRC);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setLogoSrc(getLoginLogoUrl(businessProfile) || DEFAULT_LOGO_SRC);
+  }, [businessProfile]);
 
   useBodyScrollLock();
 
@@ -103,19 +109,24 @@ export function LoginAboutModal({
   return (
     <ModalShell title="About Us" titleId="login-about-title" onClose={onClose}>
       <div className="p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <img
-            src={getLoginLogoUrl(businessProfile)}
-            alt={companyName}
-            className="w-12 h-12 rounded-lg object-contain border border-gray-100 bg-white p-0.5"
-          />
+        <div className="flex flex-col items-center text-center gap-3 pb-2">
+          <div className="w-28 h-28 rounded-2xl border border-gray-100 bg-white shadow-sm flex items-center justify-center p-2">
+            <img
+              src={logoSrc}
+              alt={companyName || "Sankalp logo"}
+              className="max-w-full max-h-full w-auto h-auto object-contain"
+              onError={() => {
+                if (logoSrc !== DEFAULT_LOGO_SRC) setLogoSrc(DEFAULT_LOGO_SRC);
+              }}
+            />
+          </div>
           <div>
-            <p className="text-sm font-bold text-[#0f1a35]">{companyName}</p>
-            {tagline && <p className="text-xs text-gray-500">{tagline}</p>}
+            <p className="text-base font-bold text-[#0f1a35]">{companyName}</p>
+            {tagline && <p className="text-xs text-gray-500 mt-0.5">{tagline}</p>}
           </div>
         </div>
 
-        {addressLine && <p className="text-sm text-gray-600 leading-relaxed">{addressLine}</p>}
+        {addressLine && <p className="text-sm text-gray-600 leading-relaxed text-center">{addressLine}</p>}
 
         {rows.length > 0 && (
           <dl className="space-y-2 text-sm">
@@ -264,11 +275,15 @@ export function LoginCornerBranding({
   onAboutClick: () => void;
   variant?: "dark" | "light";
 }) {
-  const logo = getLoginLogoUrl(businessProfile);
+  const [logo, setLogo] = useState(() => getLoginLogoUrl(businessProfile) || DEFAULT_LOGO_SRC);
   const aboutClass =
     variant === "dark"
       ? "text-gray-500 hover:text-[#0f1a35] lg:text-blue-300/70 lg:hover:text-blue-200"
       : "text-gray-500 hover:text-[#0f1a35]";
+
+  useEffect(() => {
+    setLogo(getLoginLogoUrl(businessProfile) || DEFAULT_LOGO_SRC);
+  }, [businessProfile]);
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -276,6 +291,9 @@ export function LoginCornerBranding({
         src={logo}
         alt="Company logo"
         className="w-11 h-11 rounded-lg object-contain bg-white/95 p-1 shadow-sm border border-white/20"
+        onError={() => {
+          if (logo !== DEFAULT_LOGO_SRC) setLogo(DEFAULT_LOGO_SRC);
+        }}
       />
       <button
         type="button"

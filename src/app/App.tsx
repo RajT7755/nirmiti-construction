@@ -17,6 +17,10 @@ import type { ProjectData } from "@/lib/types";
 
 const PAGE_TITLE: Record<string, string> = {
   dashboard: "Dashboard",
+  "party-payments": "Payment log",
+  "party-payments-receive": "Received Payment",
+  "party-payments-all": "All party payments",
+  "party-payments-receipt": "Payment receipt",
   customers: "Customers",
   "add-customer": "Add Customer",
   sales: "Sales",
@@ -350,6 +354,10 @@ export function SetupShell({
 
 const PATH_TO_PAGE_KEY: Record<string, string> = {
   "/dashboard": "dashboard",
+  "/dashboard/party-payments": "party-payments",
+  "/dashboard/party-payments/receive": "party-payments-receive",
+  "/dashboard/party-payments/all": "party-payments-all",
+  "/dashboard/party-payments/receipt": "party-payments-receipt",
   "/customers": "customers",
   "/add-customer": "add-customer",
   "/sales": "sales",
@@ -382,7 +390,15 @@ export function AppLayout({
   const { pathname } = useLocation();
   const pageKey =
     PATH_TO_PAGE_KEY[pathname] ??
-    (pathname.startsWith("/sales/invoice/") ? "sales-invoice" : "dashboard");
+    (pathname.startsWith("/dashboard/party-payments/receipt/")
+      ? "party-payments-receipt"
+      : pathname.startsWith("/settings/inventory")
+        ? "settings"
+        : pathname.startsWith("/inventory")
+          ? "inventory"
+          : pathname.startsWith("/sales/invoice/")
+            ? "sales-invoice"
+            : "dashboard");
 
   return (
     <div className="flex h-screen overflow-hidden print:block" style={{ fontFamily: "'Inter', sans-serif", background: "#f0f2f7" }}>

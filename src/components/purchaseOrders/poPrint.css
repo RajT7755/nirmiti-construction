@@ -1,0 +1,55 @@
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+.po-a4-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  aside,
+  header,
+  .po-no-print,
+  .inventory-no-print {
+    display: none !important;
+  }
+
+  main {
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  #po-print-root {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .po-a4-sheet {
+    width: 100% !important;
+    max-width: 210mm !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid;
+    background: #fff !important;
+  }
+}

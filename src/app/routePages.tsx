@@ -10,6 +10,10 @@ import { countBookedFlatsForProfiles } from "@/lib/dashboard/dashboardMetrics";
 import { Registration } from "@/components/pages/auth/Registration";
 //-------------dhashboard--------------------------
 import { Dashboard } from "@/components/pages/dashboard/Dashboard";
+import { PartyPaymentsPage } from "@/components/pages/dashboard/PartyPaymentsPage";
+import { ReceivePartyPayment } from "@/components/pages/dashboard/ReceivePartyPayment";
+import { PartyPaymentsAll } from "@/components/pages/dashboard/PartyPaymentsAll";
+import { PartyPaymentReceiptPage } from "@/components/pages/dashboard/PartyPaymentReceiptPage";
 import { CustomerSales } from "@/components/pages/customers/CustomerSales";
 import { AddCustomer } from "@/components/pages/customers/AddCustomer";
 import { ProjectsPage } from "@/components/pages/projects/Projects";
@@ -22,7 +26,30 @@ import { PaymentSlabs } from "@/components/pages/sales/PaymentSlabs";
 
 import { Messenger } from "@/components/pages/messenger/Messenger";
 import { InvoicePreviewPage } from "@/components/pages/sales/InvoicePreviewPage";
-import { Inventory } from "@/components/pages/inventory/Inventory";
+import { InventoryLayout } from "@/components/pages/inventory/InventoryLayout";
+import { InventoryHome } from "@/components/pages/inventory/InventoryHome";
+import { Materials } from "@/components/pages/inventory/Materials";
+import { MaterialsAll } from "@/components/pages/inventory/MaterialsAll";
+import { AddMaterial } from "@/components/pages/inventory/AddMaterial";
+import { Suppliers } from "@/components/pages/inventory/Suppliers";
+import { SuppliersAll } from "@/components/pages/inventory/SuppliersAll";
+import { AddSupplier } from "@/components/pages/inventory/AddSupplier";
+import { Contractors } from "@/components/pages/inventory/Contractors";
+import { ContractorsAll } from "@/components/pages/inventory/ContractorsAll";
+import { AddContractor } from "@/components/pages/inventory/AddContractor";
+import { SupplierPaymentsPage } from "@/components/pages/inventory/suppliers/SupplierPaymentsPage";
+import { ContractorPaymentsPage } from "@/components/pages/inventory/contractors/ContractorPaymentsPage";
+import { PurchaseOrders } from "@/components/pages/inventory/PurchaseOrders";
+import { AddPurchaseOrder } from "@/components/pages/inventory/AddPurchaseOrder";
+import { EditPurchaseOrder } from "@/components/pages/inventory/EditPurchaseOrder";
+import { PurchaseOrdersAll } from "@/components/pages/inventory/PurchaseOrdersAll";
+import { PurchaseOrderPreviewPage } from "@/components/purchaseOrders/PurchaseOrderPreviewPage";
+import { WorkOrders } from "@/components/pages/inventory/WorkOrders";
+import { AddWorkOrderRequest } from "@/components/pages/inventory/AddWorkOrderRequest";
+import { WorkOrdersAll } from "@/components/pages/inventory/WorkOrdersAll";
+import { EditWorkOrder } from "@/components/pages/inventory/EditWorkOrder";
+import { WorkOrderPreviewPage } from "@/components/workOrders/WorkOrderPreviewPage";
+import { resolveBusinessProfile } from "@/lib/settings/defaultSettings";
 
 // ----------------------shareholder------------------------------------------------------------
 
@@ -37,6 +64,11 @@ import { ProfileSettings } from "@/components/pages/settings/ProfileSettings";
 import { BusinessProfileSettings } from "@/components/pages/settings/BusinessProfileSettings";
 
 import { InventorySettings } from "@/components/pages/settings/InventorySettings";
+import { MaterialsSettings } from "@/components/pages/settings/inventory/MaterialsSettings";
+import { SuppliersSettings } from "@/components/pages/settings/inventory/SuppliersSettings";
+import { ContractorsSettings } from "@/components/pages/settings/inventory/ContractorsSettings";
+import { PurchaseOrdersSettings } from "@/components/pages/settings/inventory/PurchaseOrdersSettings";
+import { WorkOrdersSettings } from "@/components/pages/settings/inventory/WorkOrdersSettings";
 
 import { CustomerSettings } from "@/components/pages/settings/CustomerSettings";
 import { SalesSettingsHub } from "@/components/pages/settings/SalesSettingsHub";
@@ -129,16 +161,41 @@ export function LogoutRoute() {
 // --------------- dashbord -____---------------------------
 export function DashboardRoute() {
   const { filteredProjects, projectNames, isAllSites } = useSiteFilterContext();
-  const { customerProfiles, receivedPayments } = useAppDataContext();
+  const {
+    customerProfiles,
+    receivedPayments,
+    partyReceivedPayments,
+    purchaseOrders,
+    workOrders,
+  } = useAppDataContext();
   return (
     <Dashboard
       projects={filteredProjects}
       customerProfiles={customerProfiles}
       receivedPayments={receivedPayments}
+      partyReceivedPayments={partyReceivedPayments}
+      purchaseOrders={purchaseOrders}
+      workOrders={workOrders}
       projectNames={projectNames}
       isAllSites={isAllSites}
     />
   );
+}
+
+export function PartyPaymentsRoute() {
+  return <PartyPaymentsPage />;
+}
+
+export function ReceivePartyPaymentRoute() {
+  return <ReceivePartyPayment />;
+}
+
+export function PartyPaymentsAllRoute() {
+  return <PartyPaymentsAll />;
+}
+
+export function PartyPaymentReceiptRoute() {
+  return <PartyPaymentReceiptPage />;
 }
 // -------------------------CustomersRoute-------------------
 export function CustomersRoute() {
@@ -303,8 +360,18 @@ export function PaymentSlabsRoute() {
 }
 //------------------- MessengerRoute(WHatsapp)---------------------------
 export function MessengerRoute() {
-  const { customers, customerProfiles, slabs, messengerTemplates, sendWhatsAppBulk } =
-    useAppDataContext();
+  const {
+    customers,
+    customerProfiles,
+    slabs,
+    messengerTemplates,
+    sendWhatsAppBulk,
+    suppliers,
+    purchaseRequests,
+    contractors,
+    workOrderRequests,
+    businessProfile,
+  } = useAppDataContext();
 
   return (
     <Messenger
@@ -313,6 +380,14 @@ export function MessengerRoute() {
       slabs={slabs}
       slabTemplate={messengerTemplates.slabSchedule}
       overdueTemplate={messengerTemplates.overdue}
+      poRequestTemplate={messengerTemplates.poRequest}
+      woRequestTemplate={messengerTemplates.workOrderRequest}
+      customerBroadcastTemplate={messengerTemplates.customerBroadcast}
+      suppliers={suppliers}
+      purchaseRequests={purchaseRequests}
+      contractors={contractors}
+      workOrderRequests={workOrderRequests}
+      companyName={businessProfile?.companyName ?? ""}
       onWhatsAppSend={sendWhatsAppBulk}
     />
   );
@@ -331,9 +406,153 @@ export function ProjectsRoute() {
     />
   );
 }
-//-------------inventory (undercontruction)---------------------
-export function InventoryRoute() {
-  return <Inventory />;
+//-------------inventory layout + head-nav sub-pages ---------------------
+export function InventoryLayoutRoute() {
+  return <InventoryLayout />;
+}
+
+export function InventoryHomeRoute() {
+  return <InventoryHome />;
+}
+
+export function MaterialsRoute() {
+  return <Materials />;
+}
+
+export function MaterialsAllRoute() {
+  return <MaterialsAll />;
+}
+
+export function AddMaterialRoute() {
+  return <AddMaterial />;
+}
+
+export function SuppliersRoute() {
+  return <Suppliers />;
+}
+
+export function SuppliersAllRoute() {
+  return <SuppliersAll />;
+}
+
+export function AddSupplierRoute() {
+  return <AddSupplier />;
+}
+
+export function ContractorsRoute() {
+  return <Contractors />;
+}
+
+export function ContractorsAllRoute() {
+  return <ContractorsAll />;
+}
+
+export function AddContractorRoute() {
+  return <AddContractor />;
+}
+
+export function SupplierPaymentsRoute() {
+  return <SupplierPaymentsPage />;
+}
+
+export function ContractorPaymentsRoute() {
+  return <ContractorPaymentsPage />;
+}
+
+export function PurchaseOrdersRoute() {
+  return <PurchaseOrders />;
+}
+
+export function AddPurchaseOrderRoute() {
+  return <AddPurchaseOrder />;
+}
+
+export function PurchaseOrdersAllRoute() {
+  return <PurchaseOrdersAll />;
+}
+
+export function EditPurchaseOrderRoute() {
+  return <EditPurchaseOrder />;
+}
+
+export function PurchaseOrderPreviewRoute() {
+  const { poId } = useParams();
+  const { getPurchaseOrderById, suppliers, businessProfile } = useAppDataContext();
+  const order = poId ? getPurchaseOrderById(poId) : undefined;
+  const supplier = order
+    ? suppliers.find((s) => s.id === order.supplierId)
+    : undefined;
+  return (
+    <PurchaseOrderPreviewPage
+      source={order ? { kind: "po", order } : null}
+      businessProfile={resolveBusinessProfile(businessProfile)}
+      supplier={supplier}
+    />
+  );
+}
+
+export function PurchaseRequestPreviewRoute() {
+  const { requestId } = useParams();
+  const { getPurchaseRequestById, suppliers, businessProfile } = useAppDataContext();
+  const request = requestId ? getPurchaseRequestById(requestId) : undefined;
+  const supplier = request
+    ? suppliers.find((s) => s.id === request.supplierId)
+    : undefined;
+  return (
+    <PurchaseOrderPreviewPage
+      source={request ? { kind: "request", request } : null}
+      businessProfile={resolveBusinessProfile(businessProfile)}
+      supplier={supplier}
+    />
+  );
+}
+
+export function WorkOrdersRoute() {
+  return <WorkOrders />;
+}
+
+export function AddWorkOrderRequestRoute() {
+  return <AddWorkOrderRequest />;
+}
+
+export function WorkOrdersAllRoute() {
+  return <WorkOrdersAll />;
+}
+
+export function EditWorkOrderRoute() {
+  return <EditWorkOrder />;
+}
+
+export function WorkOrderPreviewRoute() {
+  const { woId } = useParams();
+  const { getWorkOrderById, contractors, businessProfile } = useAppDataContext();
+  const order = woId ? getWorkOrderById(woId) : undefined;
+  const contractor = order
+    ? contractors.find((c) => c.id === order.contractorId)
+    : undefined;
+  return (
+    <WorkOrderPreviewPage
+      source={order ? { kind: "wo", order } : null}
+      businessProfile={resolveBusinessProfile(businessProfile)}
+      contractor={contractor}
+    />
+  );
+}
+
+export function WorkOrderRequestPreviewRoute() {
+  const { requestId } = useParams();
+  const { getWorkOrderRequestById, contractors, businessProfile } = useAppDataContext();
+  const request = requestId ? getWorkOrderRequestById(requestId) : undefined;
+  const contractor = request
+    ? contractors.find((c) => c.id === request.contractorId)
+    : undefined;
+  return (
+    <WorkOrderPreviewPage
+      source={request ? { kind: "request", request } : null}
+      businessProfile={resolveBusinessProfile(businessProfile)}
+      contractor={contractor}
+    />
+  );
 }
 //--------------ShareholderRoute(undercontruction)-----------------
 export function ShareholderRoute() {
@@ -386,9 +605,29 @@ export function BusinessProfileSettingsRoute() {
     />
   );
 }
-//-------------------InventorySettingsRout
+//-------------------InventorySettings (layout + head-nav sub-pages)
 export function InventorySettingsRoute() {
   return <InventorySettings />;
+}
+
+export function InventoryMaterialsSettingsRoute() {
+  return <MaterialsSettings />;
+}
+
+export function InventorySuppliersSettingsRoute() {
+  return <SuppliersSettings />;
+}
+
+export function InventoryContractorsSettingsRoute() {
+  return <ContractorsSettings />;
+}
+
+export function InventoryPurchaseOrdersSettingsRoute() {
+  return <PurchaseOrdersSettings />;
+}
+
+export function InventoryWorkOrdersSettingsRoute() {
+  return <WorkOrdersSettings />;
 }
 //--------------------- CustomerSettingsRoute--------------------
 
