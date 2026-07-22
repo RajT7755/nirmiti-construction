@@ -137,9 +137,17 @@ export function PartyPaymentReceiptDocument({
 
       <div className="px-8 py-8 border-t border-gray-100 mt-auto flex justify-end">
         <div className="text-right min-w-[200px]">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-10">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-3">
             Authorised Signatory
           </p>
+          {businessProfile.digitalSignUrl?.trim() && (
+            <img
+              src={businessProfile.digitalSignUrl.trim()}
+              alt="Authorised signature"
+              className="h-14 max-w-[180px] object-contain ml-auto mb-2"
+            />
+          )}
+          {!businessProfile.digitalSignUrl?.trim() && <div className="h-10" />}
           <div className="border-t border-gray-300 pt-2">
             <p className="text-sm font-semibold text-[#0f1a35]">{businessProfile.companyName}</p>
             <p className="text-xs text-gray-500 mt-0.5">Authorised Sign</p>

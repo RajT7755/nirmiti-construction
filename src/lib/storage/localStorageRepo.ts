@@ -4,17 +4,8 @@ import {
   resolveInventorySettings,
   resolveSalesSettings,
 } from "@/lib/settings/defaultSettings";
-import {
-  MOCK_CONTRACTORS,
-  MOCK_MATERIALS,
-  MOCK_PURCHASE_ORDERS,
-  MOCK_PURCHASE_REQUESTS,
-  MOCK_SUPPLIERS,
-  MOCK_WORK_ORDER_REQUESTS,
-  MOCK_WORK_ORDERS,
-} from "@/lib/inventory/mockInventoryData";
 import { normalizeInvoices } from "@/lib/sales/invoiceLog";
-import { STORE_KEY } from "./storeKeys";
+import { STORE_KEY, STORE_VERSION } from "./storeKeys";
 import type { AppStore } from "./storeTypes";
 import { createSeedStore } from "./seedStore";
 
@@ -26,44 +17,28 @@ function withSettingsDefaults(parsed: AppStore): AppStore {
     salesSettings: resolveSalesSettings(parsed.salesSettings),
     inventorySettings: resolveInventorySettings(parsed.inventorySettings),
     customerSettings: parsed.customerSettings ?? createDefaultModuleSettings(),
-    materials:
-      parsed.materials ??
-      MOCK_MATERIALS.map((m) => ({ ...m, workCategories: [...m.workCategories] })),
-    suppliers:
-      parsed.suppliers ??
-      MOCK_SUPPLIERS.map((s) => ({
-        ...s,
-        workCategories: [...(s.workCategories ?? [])],
-        status: s.status ?? "active",
-      })),
-    contractors:
-      parsed.contractors ??
-      MOCK_CONTRACTORS.map((c) => ({
-        ...c,
-        workCategories: [...(c.workCategories ?? [])],
-        workProfile: c.workProfile ?? c.trade ?? "",
-        status: c.status ?? "active",
-      })),
-    purchaseOrders: parsed.purchaseOrders ?? MOCK_PURCHASE_ORDERS.map((po) => ({ ...po })),
-    purchaseRequests:
-      parsed.purchaseRequests ?? MOCK_PURCHASE_REQUESTS.map((r) => ({ ...r })),
+    materials: Array.isArray(parsed.materials) ? parsed.materials : [],
+    suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
+    contractors: Array.isArray(parsed.contractors) ? parsed.contractors : [],
+    purchaseOrders: Array.isArray(parsed.purchaseOrders) ? parsed.purchaseOrders : [],
+    purchaseRequests: Array.isArray(parsed.purchaseRequests)
+      ? parsed.purchaseRequests
+      : [],
     workOrderRequests: Array.isArray(parsed.workOrderRequests)
       ? parsed.workOrderRequests
-      : MOCK_WORK_ORDER_REQUESTS.map((r) => ({
-          ...r,
-          workCategories: [...r.workCategories],
-          materialIssues: r.materialIssues?.map((l) => ({ ...l })),
-        })),
-    workOrders: Array.isArray(parsed.workOrders)
-      ? parsed.workOrders
-      : MOCK_WORK_ORDERS.map((wo) => ({
-          ...wo,
-          workCategories: wo.workCategories ? [...wo.workCategories] : undefined,
-          materialIssues: wo.materialIssues?.map((l) => ({ ...l })),
-          materialReturns: wo.materialReturns?.map((l) => ({ ...l })) ?? [],
-        })),
+      : [],
+    workOrders: Array.isArray(parsed.workOrders) ? parsed.workOrders : [],
     partyReceivedPayments: Array.isArray(parsed.partyReceivedPayments)
       ? parsed.partyReceivedPayments
+      : [],
+    customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+    inactiveCustomers: Array.isArray(parsed.inactiveCustomers)
+      ? parsed.inactiveCustomers
+      : [],
+    projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+    slabs: Array.isArray(parsed.slabs) ? parsed.slabs : [],
+    receivedPayments: Array.isArray(parsed.receivedPayments)
+      ? parsed.receivedPayments
       : [],
   };
 }
@@ -77,7 +52,7 @@ export function loadStore(): AppStore {
       return withSettingsDefaults(seed);
     }
     const parsed = JSON.parse(raw) as AppStore;
-    if (parsed.version !== 1) {
+    if (parsed.version !== STORE_VERSION) {
       const seed = createSeedStore();
       saveStore(seed);
       return withSettingsDefaults(seed);
@@ -92,10 +67,4 @@ export function loadStore(): AppStore {
 
 export function saveStore(store: AppStore): void {
   localStorage.setItem(STORE_KEY, JSON.stringify(store));
-}
-
-export function resetStore(): AppStore {
-  const seed = createSeedStore();
-  saveStore(seed);
-  return seed;
 }

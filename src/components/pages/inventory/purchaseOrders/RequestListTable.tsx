@@ -1,6 +1,7 @@
 import type { PurchaseRequest } from "@/lib/inventory/inventoryTypes";
 import { fmtRupee } from "@/lib/inventory/poTotals";
 import { Button } from "@/components/ui/Button";
+import { AddPurchaseOrderButton } from "../buttons/AddPurchaseOrderButton";
 
 const STATUS_STYLES: Record<PurchaseRequest["status"], string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
@@ -21,7 +22,10 @@ export function RequestListTable({
 }) {
   if (requests.length === 0) {
     return (
-      <p className="text-sm text-gray-400 text-center py-8">No purchase requests yet.</p>
+      <div className="flex flex-col items-center gap-3 py-10 px-4">
+        <p className="text-sm text-gray-400 text-center">No purchase requests yet.</p>
+        <AddPurchaseOrderButton label="Add purchase request" />
+      </div>
     );
   }
 

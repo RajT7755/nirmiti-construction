@@ -6,6 +6,7 @@ import type {
   WorkOrder,
   WorkOrderRequest,
 } from "@/lib/inventory/inventoryTypes";
+import { resolveWorkLines } from "@/lib/inventory/workLines";
 import { fmtRupee } from "@/lib/inventory/poTotals";
 
 export type WoDocumentSource =
@@ -52,6 +53,15 @@ export function WorkOrderDocument({
   const description = isWo
     ? source.order.description ?? source.order.title
     : source.request.description;
+  const workLines = resolveWorkLines(
+    isWo
+      ? {
+          workLines: source.order.workLines,
+          description: source.order.description ?? source.order.title,
+          workProfile: source.order.workProfile ?? source.order.trade,
+        }
+      : source.request
+  );
   const dateOfIssue = isWo
     ? source.order.dateOfIssue ?? source.order.startDate
     : source.request.dateOfIssue;
@@ -170,20 +180,25 @@ export function WorkOrderDocument({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#1e4d8c] text-white text-left">
+              <th className="py-2.5 px-3 font-semibold w-10">#</th>
+              <th className="py-2.5 px-3 font-semibold">Work profile</th>
               <th className="py-2.5 px-3 font-semibold">Work description</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-gray-100">
-              <td className="py-3 px-3 align-top">
-                <p className="text-sm text-gray-700 whitespace-pre-line">
-                  {description || "—"}
-                </p>
-                {workProfile && (
-                  <p className="text-xs text-gray-500 mt-1">Profile: {workProfile}</p>
-                )}
-              </td>
-            </tr>
+            {workLines.map((line, i) => (
+              <tr key={i} className="border-b border-gray-100">
+                <td className="py-3 px-3 text-gray-500 align-top">{i + 1}</td>
+                <td className="py-3 px-3 text-gray-700 align-top">
+                  {line.workProfile || workProfile || "—"}
+                </td>
+                <td className="py-3 px-3 align-top">
+                  <p className="text-sm text-gray-700 whitespace-pre-line">
+                    {line.description || description || "—"}
+                  </p>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -262,10 +277,26 @@ export function WorkOrderDocument({
       </div>
 
       <div className="px-8 py-8 border-t border-gray-100 mt-auto flex justify-end">
-        <div className="text-right min-w-[200px]">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-10">
+        <div className="text-right min-w-[220px]">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
             Authorised Signatory
           </p>
+          {businessProfile.digitalSignUrl?.trim() ? (
+            <>
+              <p className="text-[10px] text-gray-400 mb-1">Digital signature</p>
+              <img
+                src={businessProfile.digitalSignUrl.trim()}
+                alt="Authorised digital signature"
+                className="h-16 max-w-[200px] w-auto object-contain ml-auto mb-2"
+                style={{
+                  WebkitPrintColorAdjust: "exact",
+                  printColorAdjust: "exact",
+                }}
+              />
+            </>
+          ) : (
+            <div className="h-12" aria-hidden />
+          )}
           <div className="border-t border-gray-300 pt-2">
             <p className="text-sm font-semibold text-[#0f1a35]">{businessProfile.companyName}</p>
             <p className="text-xs text-gray-500 mt-0.5">Authorised Sign</p>

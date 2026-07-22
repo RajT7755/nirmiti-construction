@@ -27,6 +27,7 @@ export const LOGIN_ABOUT_CUSTOMER_CARE_EMAIL = "customercare01@sankalpenterprise
 export function createDefaultBusinessProfile(): BusinessProfileData {
   return {
     logoUrl: DEFAULT_LOGO_SRC,
+    digitalSignUrl: "",
     companyName: LOGIN_ABOUT_COMPANY_NAME,
     tagline: DEFAULT_TAGLINE,
     address: "",

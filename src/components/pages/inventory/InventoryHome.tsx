@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import { InventoryKpiGrid } from "./InventoryKpiGrid";
 import { InventoryActivityTabs } from "./InventoryActivityTabs";
 import { computeInventoryKpis } from "@/lib/inventory/inventoryMetrics";
-import { MOCK_OVERDUE_BILLS } from "@/lib/inventory/mockInventoryData";
 import { useAppDataContext } from "@/app/AppDataContext";
 
 /**
@@ -49,7 +48,7 @@ export function InventoryHome() {
       <InventoryActivityTabs
         purchaseOrders={recentOrders}
         workOrders={recentWorkOrders}
-        overdueBills={MOCK_OVERDUE_BILLS}
+        overdueBills={[]}
         onViewAllOrders={() => navigate("/inventory/purchase-orders")}
         onViewAllWorkOrders={() => navigate("/inventory/work-orders")}
       />

@@ -1,6 +1,7 @@
 import type { WorkOrder } from "@/lib/inventory/inventoryTypes";
 import { fmtRupee } from "@/lib/inventory/poTotals";
 import { isWoPayable } from "@/lib/inventory/workOrderStock";
+import { RequestWorkOrderButton } from "./buttons/RequestWorkOrderButton";
 
 const STATUS_STYLES: Record<WorkOrder["status"], string> = {
   open: "bg-amber-50 text-amber-700 border-amber-200",
@@ -18,20 +19,30 @@ export function RecentWorkOrdersPanel({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 gap-2 flex-wrap">
         <h3 className="text-sm font-semibold text-[#0f1a35]">Recent Work Orders</h3>
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="text-xs font-semibold text-blue-600 hover:underline"
-          >
-            View all
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <RequestWorkOrderButton
+            label="Add"
+            variant="outline"
+            className="!px-3 !py-1.5 text-xs"
+          />
+          {onViewAll && (
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              View all
+            </button>
+          )}
+        </div>
       </div>
       {orders.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">No work orders yet.</p>
+        <div className="flex flex-col items-center gap-3 py-8">
+          <p className="text-sm text-gray-400 text-center">No work orders yet.</p>
+          <RequestWorkOrderButton label="Add work request" />
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

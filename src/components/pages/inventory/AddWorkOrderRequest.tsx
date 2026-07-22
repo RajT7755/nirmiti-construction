@@ -26,8 +26,9 @@ export function AddWorkOrderRequest() {
   const today = new Date().toISOString().slice(0, 10);
   const [contractorId, setContractorId] = useState("");
   const [workCategories, setWorkCategories] = useState<string[]>([]);
-  const [workProfile, setWorkProfile] = useState("");
-  const [description, setDescription] = useState("");
+  const [workLines, setWorkLines] = useState<
+    { workProfile: string; description: string }[]
+  >([{ workProfile: "", description: "" }]);
   const [dateOfIssue, setDateOfIssue] = useState(today);
   const [commitmentDate, setCommitmentDate] = useState(today);
   const [issueMaterials, setIssueMaterials] = useState(false);
@@ -43,7 +44,14 @@ export function AddWorkOrderRequest() {
     setContractorId(id);
     const c = activeContractors.find((x) => x.id === id);
     if (c) {
-      setWorkProfile(c.workProfile || c.trade || "");
+      const profile = c.workProfile || c.trade || "";
+      setWorkLines((prev) => {
+        const next = [...prev];
+        if (next[0] && !next[0].workProfile.trim()) {
+          next[0] = { ...next[0], workProfile: profile };
+        }
+        return next;
+      });
       if (c.workCategories?.length) {
         setWorkCategories([...c.workCategories]);
       }
@@ -63,8 +71,14 @@ export function AddWorkOrderRequest() {
       setError("Select a contractor.");
       return;
     }
-    if (!description.trim()) {
-      setError("Enter description.");
+    const cleanedWork = workLines
+      .map((l) => ({
+        workProfile: l.workProfile.trim() || undefined,
+        description: l.description.trim(),
+      }))
+      .filter((l) => l.description || l.workProfile);
+    if (cleanedWork.length === 0 || cleanedWork.every((l) => !l.description)) {
+      setError("Enter at least one work description.");
       return;
     }
     if (!dateOfIssue || !commitmentDate) {
@@ -95,8 +109,10 @@ export function AddWorkOrderRequest() {
       contractorId: selectedContractor.id,
       contractorName: selectedContractor.name,
       workCategories,
-      workProfile: workProfile.trim() || selectedContractor.workProfile || "",
-      description: description.trim(),
+      workProfile:
+        cleanedWork[0]?.workProfile || selectedContractor.workProfile || "",
+      description: cleanedWork.map((l) => l.description).join("\n"),
+      workLines: cleanedWork,
       dateOfIssue,
       commitmentDate,
       materialIssues,
@@ -179,31 +195,67 @@ export function AddWorkOrderRequest() {
           </div>
         </div>
 
-        <div>
-          <label className={labelClass} htmlFor="wor-profile">
-            Work profile
-          </label>
-          <input
-            id="wor-profile"
-            className={fieldClass}
-            value={workProfile}
-            onChange={(e) => setWorkProfile(e.target.value)}
-            placeholder="Trade / work profile"
-          />
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor="wor-desc">
-            Description *
-          </label>
-          <textarea
-            id="wor-desc"
-            className={fieldClass}
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-          />
+        <div className="border border-gray-100 rounded-lg p-3 space-y-3">
+          <p className="text-sm font-semibold text-[#0f1a35]">Work lines</p>
+          {workLines.map((line, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-500">Work {i + 1}</span>
+                {workLines.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="!px-2 !py-1.5"
+                    onClick={() =>
+                      setWorkLines(workLines.filter((_, j) => j !== i))
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Work profile</label>
+                <input
+                  className={fieldClass}
+                  value={line.workProfile}
+                  onChange={(e) => {
+                    const next = [...workLines];
+                    next[i] = { ...next[i], workProfile: e.target.value };
+                    setWorkLines(next);
+                  }}
+                  placeholder="Trade / work profile"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Description *</label>
+                <textarea
+                  className={fieldClass}
+                  rows={2}
+                  value={line.description}
+                  onChange={(e) => {
+                    const next = [...workLines];
+                    next[i] = { ...next[i], description: e.target.value };
+                    setWorkLines(next);
+                  }}
+                  placeholder="Work description"
+                />
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            className="text-xs !py-1.5"
+            onClick={() =>
+              setWorkLines([...workLines, { workProfile: "", description: "" }])
+            }
+          >
+            <Plus size={14} /> Add work
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

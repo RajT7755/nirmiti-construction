@@ -24,6 +24,7 @@ export function workOrderFromRequest(
     title,
     description: request.description,
     workProfile: request.workProfile,
+    workLines: request.workLines?.map((l) => ({ ...l })),
     workCategories: [...(request.workCategories ?? [])],
     trade: request.workProfile || undefined,
     materialIds: issues.map((l) => l.materialId),

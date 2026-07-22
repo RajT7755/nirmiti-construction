@@ -2,6 +2,7 @@ import "./poPrint.css";
 import { resolveLogoUrl } from "@/lib/settings/defaultSettings";
 import type { BusinessProfileData } from "@/lib/settings/settingsTypes";
 import type { PurchaseOrder, PurchaseRequest, Supplier } from "@/lib/inventory/inventoryTypes";
+import { resolvePoLineItems } from "@/lib/inventory/poLineItems";
 import { fmtRupee } from "@/lib/inventory/poTotals";
 
 export type PoDocumentSource =
@@ -34,15 +35,15 @@ export function PurchaseOrderDocument({
     ? source.order.requestNo ?? "—"
     : source.request.requestNo;
   const docId = isPo ? source.order.id : source.request.requestNo;
-  const materialName = data.materialName;
-  const productDescription = isPo
-    ? source.order.productDescription ?? ""
-    : source.request.productDescription;
-  const quantity = data.quantity;
-  const unit = data.unit;
-  const unitPrice = isPo
-    ? source.order.unitPrice ?? 0
-    : source.request.unitPrice;
+  const lineItems = resolvePoLineItems(
+    isPo
+      ? {
+          ...source.order,
+          lineTotal: source.order.subTotal,
+          productDescription: source.order.productDescription,
+        }
+      : source.request
+  );
   const lineTotal = isPo
     ? source.order.subTotal ?? source.order.amountTotal ?? 0
     : source.request.lineTotal;
@@ -171,20 +172,24 @@ export function PurchaseOrderDocument({
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-gray-100">
-              <td className="py-3 px-3 align-top">
-                <p className="font-semibold text-[#0f1a35]">{materialName}</p>
-                {productDescription && (
-                  <p className="text-xs text-gray-500 mt-0.5">{productDescription}</p>
-                )}
-                <p className="text-[11px] text-gray-400 mt-0.5">Unit: {unit}</p>
-              </td>
-              <td className="py-3 px-3 text-right text-gray-700">{quantity}</td>
-              <td className="py-3 px-3 text-right text-gray-700">{fmtRupee(unitPrice)}</td>
-              <td className="py-3 px-3 text-right font-semibold text-[#0f1a35]">
-                {fmtRupee(lineTotal)}
-              </td>
-            </tr>
+            {lineItems.map((item, idx) => (
+              <tr key={`${item.materialId ?? item.materialName}-${idx}`} className="border-b border-gray-100">
+                <td className="py-3 px-3 align-top">
+                  <p className="font-semibold text-[#0f1a35]">{item.materialName}</p>
+                  {item.productDescription && (
+                    <p className="text-xs text-gray-500 mt-0.5">{item.productDescription}</p>
+                  )}
+                  <p className="text-[11px] text-gray-400 mt-0.5">Unit: {item.unit}</p>
+                </td>
+                <td className="py-3 px-3 text-right text-gray-700">{item.quantity}</td>
+                <td className="py-3 px-3 text-right text-gray-700">
+                  {fmtRupee(item.unitPrice)}
+                </td>
+                <td className="py-3 px-3 text-right font-semibold text-[#0f1a35]">
+                  {fmtRupee(item.lineTotal)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -216,10 +221,26 @@ export function PurchaseOrderDocument({
       </div>
 
       <div className="px-8 py-8 border-t border-gray-100 mt-auto flex justify-end">
-        <div className="text-right min-w-[200px]">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-10">
+        <div className="text-right min-w-[220px]">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
             Authorised Signatory
           </p>
+          {businessProfile.digitalSignUrl?.trim() ? (
+            <>
+              <p className="text-[10px] text-gray-400 mb-1">Digital signature</p>
+              <img
+                src={businessProfile.digitalSignUrl.trim()}
+                alt="Authorised digital signature"
+                className="h-16 max-w-[200px] w-auto object-contain ml-auto mb-2"
+                style={{
+                  WebkitPrintColorAdjust: "exact",
+                  printColorAdjust: "exact",
+                }}
+              />
+            </>
+          ) : (
+            <div className="h-12" aria-hidden />
+          )}
           <div className="border-t border-gray-300 pt-2">
             <p className="text-sm font-semibold text-[#0f1a35]">{businessProfile.companyName}</p>
             <p className="text-xs text-gray-500 mt-0.5">Authorised Sign</p>

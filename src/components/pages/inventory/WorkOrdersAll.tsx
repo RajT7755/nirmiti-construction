@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { Wrench } from "lucide-react";
 import { useAppDataContext } from "@/app/AppDataContext";
 import { WorkOrderListTable } from "./workOrders/WorkOrderListTable";
+import { RequestWorkOrderButton } from "./buttons/RequestWorkOrderButton";
 import { Button } from "@/components/ui/Button";
 import { isWoPayable } from "@/lib/inventory/workOrderStock";
 
@@ -47,6 +48,7 @@ export function WorkOrdersAll() {
             <option value="payable">Payable only</option>
             <option value="not_payable">Needs work amount</option>
           </select>
+          <RequestWorkOrderButton />
           <Button
             type="button"
             variant="outline"

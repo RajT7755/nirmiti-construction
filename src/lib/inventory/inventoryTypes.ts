@@ -54,6 +54,18 @@ export interface Contractor {
 
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected";
 
+/** One material / product line on a purchase request or PO */
+export interface PoLineItem {
+  materialId?: string;
+  materialName: string;
+  productDescription: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  /** Line amount before GST */
+  lineTotal: number;
+}
+
 /** Material purchase request — not payable until approved → PO */
 export interface PurchaseRequest {
   id: string;
@@ -68,8 +80,10 @@ export interface PurchaseRequest {
   unit: string;
   quantity: number;
   unitPrice: number;
-  /** Editable line amount (default qty × unitPrice) */
+  /** Editable line amount (default qty × unitPrice) — sum of items when multi-line */
   lineTotal: number;
+  /** Multi-line items (optional; legacy = single scalar fields) */
+  items?: PoLineItem[];
   gstRate: number;
   gstAmount: number;
   /** Round-up amount applied only at final total */
@@ -107,6 +121,8 @@ export interface PurchaseOrder {
   unitPrice?: number;
   /** Line / sub total before GST (editable source) */
   subTotal?: number;
+  /** Multi-line items (optional; legacy = single scalar fields) */
+  items?: PoLineItem[];
   gstRate?: number;
   gstAmount?: number;
   /** Round-up only on final bill (e.g. 1267.4 → 1268) */
@@ -134,6 +150,12 @@ export interface WorkMaterialLine {
 
 export type WorkOrderRequestStatus = "pending" | "generated" | "rejected";
 
+/** One work description line on a work request / WO */
+export interface WorkDescriptionLine {
+  workProfile?: string;
+  description: string;
+}
+
 /** Work request — no work amount; amount set after Generate WO. */
 export interface WorkOrderRequest {
   id: string;
@@ -143,6 +165,8 @@ export interface WorkOrderRequest {
   workCategories: string[];
   workProfile: string;
   description: string;
+  /** Multi work lines (optional; legacy = single description) */
+  workLines?: WorkDescriptionLine[];
   dateOfIssue: string;
   commitmentDate: string;
   materialIssues?: WorkMaterialLine[];
@@ -158,6 +182,8 @@ export interface WorkOrder {
   title: string;
   description?: string;
   workProfile?: string;
+  /** Multi work lines (optional; legacy = single description) */
+  workLines?: WorkDescriptionLine[];
   workCategories?: string[];
   trade?: string;
   materialIds?: string[];

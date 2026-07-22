@@ -1,4 +1,5 @@
 import type { PurchaseOrder } from "@/lib/inventory/inventoryTypes";
+import { AddPurchaseOrderButton } from "./buttons/AddPurchaseOrderButton";
 
 const STATUS_STYLES: Record<PurchaseOrder["status"], string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
@@ -15,20 +16,30 @@ export function RecentPurchaseOrdersPanel({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 gap-2 flex-wrap">
         <h3 className="text-sm font-semibold text-[#0f1a35]">Recent Purchase Orders</h3>
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="text-xs font-semibold text-blue-600 hover:underline"
-          >
-            View all
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <AddPurchaseOrderButton
+            label="Add"
+            variant="outline"
+            className="!px-3 !py-1.5 text-xs"
+          />
+          {onViewAll && (
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              View all
+            </button>
+          )}
+        </div>
       </div>
       {orders.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">No purchase orders yet.</p>
+        <div className="flex flex-col items-center gap-3 py-8">
+          <p className="text-sm text-gray-400 text-center">No purchase orders yet.</p>
+          <AddPurchaseOrderButton label="Add purchase request" />
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

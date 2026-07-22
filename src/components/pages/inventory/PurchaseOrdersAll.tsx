@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { ClipboardList } from "lucide-react";
 import { useAppDataContext } from "@/app/AppDataContext";
 import { PoListTable } from "./purchaseOrders/PoListTable";
+import { AddPurchaseOrderButton } from "./buttons/AddPurchaseOrderButton";
 import { Button } from "@/components/ui/Button";
 import { isPoPayable } from "@/lib/inventory/poTotals";
 
@@ -49,6 +50,7 @@ export function PurchaseOrdersAll() {
             <option value="payable">Payable only</option>
             <option value="not_payable">Needs amount edit</option>
           </select>
+          <AddPurchaseOrderButton />
           <Button
             type="button"
             variant="outline"

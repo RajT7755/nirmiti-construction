@@ -6,11 +6,13 @@
   "author": "Raj Taware <RajT7755>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RajT7755/construction_cms.git"
+    "url": "https://github.com/RajT7755/nirmiti-construction.git"
   },
+  "homepage": "https://RajT7755.github.io/nirmiti-construction/",
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:pages": "cross-env GITHUB_PAGES=true VITE_ROUTER_MODE=hash vite build",
     "dev": "vite",
     "preview": "vite preview"
   },
@@ -77,6 +79,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
+    "cross-env": "^10.1.0",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },

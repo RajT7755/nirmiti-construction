@@ -32,6 +32,7 @@ export function purchaseOrderFromApprovedRequest(
     productDescription: request.productDescription,
     unitPrice: request.unitPrice,
     subTotal: request.lineTotal,
+    items: request.items?.map((it) => ({ ...it })),
     gstRate: request.gstRate,
     gstAmount: request.gstAmount,
     roundOff: request.roundOff,

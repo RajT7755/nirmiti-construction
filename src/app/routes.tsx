@@ -1,4 +1,8 @@
-import { createBrowserRouter, Navigate } from "react-router";
+import {
+  createBrowserRouter,
+  createHashRouter,
+  Navigate,
+} from "react-router";
 import { AppDataProvider } from "./AppDataContext";
 import { LoginGuard, RedirectRoot, RequireProject, RequireSession } from "./guards";
 import {
@@ -61,7 +65,7 @@ import {
   ShareholderRoute,
 } from "./routePages";
 
-export const router = createBrowserRouter([
+const routeTree = [
   {
     path: "/",
     element: <AppDataProvider />,
@@ -216,4 +220,13 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+] as const;
+
+/** Hash router for GitHub Pages (deep links); browser router for local dev. */
+const useHashRouter =
+  import.meta.env.VITE_ROUTER_MODE === "hash" ||
+  (import.meta.env.BASE_URL !== "/" && import.meta.env.PROD);
+
+export const router = useHashRouter
+  ? createHashRouter(routeTree as Parameters<typeof createHashRouter>[0])
+  : createBrowserRouter(routeTree as Parameters<typeof createBrowserRouter>[0]);

@@ -42,6 +42,7 @@ import type {
   Contractor,
   ContractorStatus,
   Material,
+  PoLineItem,
   PurchaseOrder,
   PurchaseRequest,
   Supplier,
@@ -50,6 +51,7 @@ import type {
   WorkOrder,
   WorkOrderRequest,
 } from "@/lib/inventory/inventoryTypes";
+import { summarizePoItems, sumPoLineTotals } from "@/lib/inventory/poLineItems";
 import type {
   AddPartyReceivedPaymentInput,
   PartyReceivedPayment,
@@ -94,15 +96,6 @@ import {
   clampReturnLines,
   isWoPayable,
 } from "@/lib/inventory/workOrderStock";
-import {
-  MOCK_CONTRACTORS,
-  MOCK_MATERIALS,
-  MOCK_PURCHASE_ORDERS,
-  MOCK_PURCHASE_REQUESTS,
-  MOCK_SUPPLIERS,
-  MOCK_WORK_ORDER_REQUESTS,
-  MOCK_WORK_ORDERS,
-} from "@/lib/inventory/mockInventoryData";
 import type { AddCustomerFormInput } from "@/lib/customers/buildCustomerProfile";
 import { buildCustomerProfile } from "@/lib/customers/buildCustomerProfile";
 import { canEditBusinessProfile } from "@/lib/auth/businessProfileAccess";
@@ -144,21 +137,13 @@ function createEmptyStore(): AppStore {
     salesSettings: createDefaultSalesSettings(),
     inventorySettings: createDefaultInventorySettings(),
     customerSettings: createDefaultModuleSettings(),
-    materials: MOCK_MATERIALS.map((m) => ({ ...m, workCategories: [...m.workCategories] })),
-    suppliers: MOCK_SUPPLIERS.map((s) =>
-      normalizeSupplier({ ...s, workCategories: [...s.workCategories] })
-    ),
-    contractors: MOCK_CONTRACTORS.map((c) =>
-      normalizeContractor({
-        ...c,
-        workCategories: [...(c.workCategories ?? [])],
-        workProfile: c.workProfile ?? c.trade ?? "",
-      })
-    ),
-    purchaseOrders: MOCK_PURCHASE_ORDERS.map((po) => ({ ...po })),
-    purchaseRequests: MOCK_PURCHASE_REQUESTS.map((r) => ({ ...r })),
-    workOrderRequests: MOCK_WORK_ORDER_REQUESTS.map((r) => ({ ...r })),
-    workOrders: MOCK_WORK_ORDERS.map((wo) => ({ ...wo })),
+    materials: [],
+    suppliers: [],
+    contractors: [],
+    purchaseOrders: [],
+    purchaseRequests: [],
+    workOrderRequests: [],
+    workOrders: [],
     partyReceivedPayments: [],
   };
 }
@@ -781,18 +766,15 @@ export function useAppData() {
   );
 
   const materials: Material[] = useMemo(() => {
-    if (store?.materials) return store.materials;
-    return MOCK_MATERIALS.map((m) => ({ ...m, workCategories: [...m.workCategories] }));
+    return store?.materials ?? [];
   }, [store?.materials]);
 
   const purchaseOrders: PurchaseOrder[] = useMemo(() => {
-    if (store?.purchaseOrders) return store.purchaseOrders;
-    return MOCK_PURCHASE_ORDERS.map((po) => ({ ...po }));
+    return store?.purchaseOrders ?? [];
   }, [store?.purchaseOrders]);
 
   const purchaseRequests: PurchaseRequest[] = useMemo(() => {
-    if (store?.purchaseRequests) return store.purchaseRequests;
-    return MOCK_PURCHASE_REQUESTS.map((r) => ({ ...r }));
+    return store?.purchaseRequests ?? [];
   }, [store?.purchaseRequests]);
 
   const addPurchaseRequest = useCallback(
@@ -879,13 +861,11 @@ export function useAppData() {
    * Sets payable when grandTotal > 0.
    */
   const workOrderRequests: WorkOrderRequest[] = useMemo(() => {
-    if (store?.workOrderRequests) return store.workOrderRequests;
-    return MOCK_WORK_ORDER_REQUESTS.map((r) => ({ ...r }));
+    return store?.workOrderRequests ?? [];
   }, [store?.workOrderRequests]);
 
   const workOrders: WorkOrder[] = useMemo(() => {
-    if (store?.workOrders) return store.workOrders;
-    return MOCK_WORK_ORDERS.map((wo) => ({ ...wo }));
+    return store?.workOrders ?? [];
   }, [store?.workOrders]);
 
   const addWorkOrderRequest = useCallback(
@@ -1153,6 +1133,7 @@ export function useAppData() {
         productDescription?: string;
         shipToAddress?: string;
         unit?: string;
+        items?: PoLineItem[];
       }
     ) => {
       if (!store) return null;
@@ -1160,41 +1141,84 @@ export function useAppData() {
       const idx = list.findIndex((p) => p.id === poId);
       if (idx < 0) return null;
       const prev = list[idx];
-      const quantity =
-        typeof patch.quantity === "number" ? Math.max(0, patch.quantity) : prev.quantity;
-      const unitPrice =
-        typeof patch.unitPrice === "number"
-          ? Math.max(0, patch.unitPrice)
-          : (prev.unitPrice ?? 0);
-      const lineTotal =
-        typeof patch.lineTotal === "number"
-          ? Math.max(0, patch.lineTotal)
-          : (prev.subTotal ?? prev.amountTotal ?? 0);
       const gstRate =
-        typeof patch.gstRate === "number" ? Math.max(0, patch.gstRate) : (prev.gstRate ?? DEFAULT_GST_RATE);
-      const totals = computePoTotals({ subTotal: lineTotal, gstRate });
-      const nextPo: PurchaseOrder = {
-        ...prev,
-        quantity,
-        unitPrice,
-        unit: patch.unit?.trim() || prev.unit,
-        productDescription:
-          patch.productDescription !== undefined
-            ? patch.productDescription.trim()
-            : prev.productDescription,
-        shipToAddress:
-          patch.shipToAddress !== undefined
-            ? patch.shipToAddress.trim()
-            : prev.shipToAddress,
-        subTotal: totals.subTotal,
-        gstRate: totals.gstRate,
-        gstAmount: totals.gstAmount,
-        roundOff: totals.roundOff,
-        grandTotal: totals.grandTotal,
-        amountTotal: totals.grandTotal,
-        amountPaid: Math.min(prev.amountPaid ?? 0, totals.grandTotal),
-        payable: totals.grandTotal > 0,
-      };
+        typeof patch.gstRate === "number"
+          ? Math.max(0, patch.gstRate)
+          : (prev.gstRate ?? DEFAULT_GST_RATE);
+
+      let nextPo: PurchaseOrder;
+      if (patch.items && patch.items.length > 0) {
+        const items = patch.items.map((it) => ({
+          ...it,
+          materialName: it.materialName.trim(),
+          productDescription: it.productDescription.trim(),
+          unit: it.unit.trim() || "nos",
+          quantity: Math.max(0, Number(it.quantity) || 0),
+          unitPrice: Math.max(0, Number(it.unitPrice) || 0),
+          lineTotal: Math.max(0, Number(it.lineTotal) || 0),
+        }));
+        const summary = summarizePoItems(items);
+        const totals = computePoTotals({
+          subTotal: sumPoLineTotals(items),
+          gstRate,
+        });
+        nextPo = {
+          ...prev,
+          items,
+          materialId: summary.materialId,
+          materialName: summary.materialName,
+          productDescription: summary.productDescription,
+          unit: summary.unit,
+          quantity: summary.quantity,
+          unitPrice: summary.unitPrice,
+          shipToAddress:
+            patch.shipToAddress !== undefined
+              ? patch.shipToAddress.trim()
+              : prev.shipToAddress,
+          subTotal: totals.subTotal,
+          gstRate: totals.gstRate,
+          gstAmount: totals.gstAmount,
+          roundOff: totals.roundOff,
+          grandTotal: totals.grandTotal,
+          amountTotal: totals.grandTotal,
+          amountPaid: Math.min(prev.amountPaid ?? 0, totals.grandTotal),
+          payable: totals.grandTotal > 0,
+        };
+      } else {
+        const quantity =
+          typeof patch.quantity === "number" ? Math.max(0, patch.quantity) : prev.quantity;
+        const unitPrice =
+          typeof patch.unitPrice === "number"
+            ? Math.max(0, patch.unitPrice)
+            : (prev.unitPrice ?? 0);
+        const lineTotal =
+          typeof patch.lineTotal === "number"
+            ? Math.max(0, patch.lineTotal)
+            : (prev.subTotal ?? prev.amountTotal ?? 0);
+        const totals = computePoTotals({ subTotal: lineTotal, gstRate });
+        nextPo = {
+          ...prev,
+          quantity,
+          unitPrice,
+          unit: patch.unit?.trim() || prev.unit,
+          productDescription:
+            patch.productDescription !== undefined
+              ? patch.productDescription.trim()
+              : prev.productDescription,
+          shipToAddress:
+            patch.shipToAddress !== undefined
+              ? patch.shipToAddress.trim()
+              : prev.shipToAddress,
+          subTotal: totals.subTotal,
+          gstRate: totals.gstRate,
+          gstAmount: totals.gstAmount,
+          roundOff: totals.roundOff,
+          grandTotal: totals.grandTotal,
+          amountTotal: totals.grandTotal,
+          amountPaid: Math.min(prev.amountPaid ?? 0, totals.grandTotal),
+          payable: totals.grandTotal > 0,
+        };
+      }
       const next = [...list];
       next[idx] = nextPo;
       persist({ ...store, purchaseOrders: next });
@@ -1230,7 +1254,7 @@ export function useAppData() {
     if (store?.suppliers) {
       return store.suppliers.map(normalizeSupplier);
     }
-    return MOCK_SUPPLIERS.map((s) => normalizeSupplier({ ...s, workCategories: [...s.workCategories] }));
+    return [];
   }, [store?.suppliers]);
 
   const addSupplier = useCallback(
@@ -1319,13 +1343,7 @@ export function useAppData() {
     if (store?.contractors) {
       return store.contractors.map(normalizeContractor);
     }
-    return MOCK_CONTRACTORS.map((c) =>
-      normalizeContractor({
-        ...c,
-        workCategories: [...(c.workCategories ?? [])],
-        workProfile: c.workProfile ?? c.trade ?? "",
-      })
-    );
+    return [];
   }, [store?.contractors]);
 
   const addContractor = useCallback(

@@ -1,5 +1,6 @@
 import type { WorkOrderRequest } from "@/lib/inventory/inventoryTypes";
 import { Button } from "@/components/ui/Button";
+import { RequestWorkOrderButton } from "../buttons/RequestWorkOrderButton";
 
 const STATUS_STYLES: Record<WorkOrderRequest["status"], string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
@@ -20,7 +21,10 @@ export function WorkRequestListTable({
 }) {
   if (requests.length === 0) {
     return (
-      <p className="text-sm text-gray-400 text-center py-8">No work requests yet.</p>
+      <div className="flex flex-col items-center gap-3 py-10 px-4">
+        <p className="text-sm text-gray-400 text-center">No work requests yet.</p>
+        <RequestWorkOrderButton label="Add work request" />
+      </div>
     );
   }
 

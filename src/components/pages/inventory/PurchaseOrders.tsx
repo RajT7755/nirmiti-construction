@@ -91,9 +91,16 @@ export function PurchaseOrders() {
 
       {/* 1. Requests */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2 flex-wrap">
           <h4 className="text-sm font-semibold text-[#0f1a35]">1. Requests</h4>
-          <span className="text-xs text-gray-400">{sortedRequests.length} total</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">{sortedRequests.length} total</span>
+            <AddPurchaseOrderButton
+              label="Add"
+              variant="outline"
+              className="!px-3 !py-1.5 text-xs"
+            />
+          </div>
         </div>
         <RequestListTable
           requests={sortedRequests}

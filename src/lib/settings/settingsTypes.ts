@@ -2,6 +2,8 @@ export interface BusinessProfileData {
   ownerEmail?: string;
   isActivated?: boolean;
   logoUrl: string;
+  /** Authorised signature image (data URL). Prefer PNG. */
+  digitalSignUrl?: string;
   companyName: string;
   tagline: string;
   address: string;
